@@ -1,9 +1,14 @@
 # Smart-Money Intelligence & Stock-Discovery Engine — Complete Research & Build Manual
 
 > A single, self-contained reference for detecting insider buying, director dealings, strategic accumulation and early institutional positioning across global public equities — and turning those signals into a stock-discovery engine.
-> Compiled 2026-06-16. **Strictly public-information design.** See §20 for legal/ethical boundaries.
+> Compiled 2026-06-16. **v3 — reviewed by five domain experts** (corporate insider/GC, quant data analyst, buy-side/activist PM, market-abuse compliance lawyer, risk/portfolio-construction). **Strictly public-information design.** See §20 (legal) and §21 (risk).
 
-**Confidence legend:** **HIGH** = primary source / multiple corroboration · **MED** = single reputable source · **LOW / FLAG** = unverified, contested, or vendor-marketing claim. Contested academic claims are flagged inline and collected in §21.
+**Confidence legend:** **HIGH** = primary source / multiple corroboration · **MED** = single reputable source · **LOW / FLAG** = unverified, contested, or vendor-marketing claim. Contested academic claims are flagged inline and collected in §22.
+
+**v3 expert-review changelog (what the panel changed):**
+- **Factual fixes:** transaction code **D** and **I** were mislabelled (§3.2); **Form SHO** short-position regime is **delayed to 2028, not live** (§6.1); Germany "€50k from 2026" likely **exceeds the MAR Art.19(9) €20k cap** unless amended by the EU Listing Act — flagged (§5); 13D "≥1% material" softened to "generally treated as material" (§6.2).
+- **New concepts:** Section 16(b) short-swing rule (§3.6) — *why* a P buy is high-commitment; the **Archegos cash-settled-swap blind spot** in ownership data (§6.3a); **filer-quality tiering** (§6.7); **sector priors** (§7a) and **special situations** (§7b); a **Tradeability axis** beside the signal score (§8); entity-resolution layer (§14.0); a full **Risk Management & Portfolio Construction** section (§21).
+- **Hardened:** scoring model is now a calibrated/regularised model with the linear table as an explainable prior (§8); net-buy-ratio is a **kill-switch not a −10 adder** (§8/§9); timing is **gated on the balance sheet** to separate conviction from value traps (§8/§9); backtest adds multiple-testing/PBO, point-in-time vendor & cluster controls, UK stamp duty/FTT (§15); memo/alert upgraded to **decision-grade** (§16/§18); §20 legal section fully rebuilt.
 
 ---
 
@@ -29,7 +34,8 @@
 18. Example alert format
 19. Master source list (websites / APIs / feeds)
 20. Legal & ethical boundaries
-21. Appendix — contested claims & key academic citations
+21. Risk management & portfolio construction (the missing half of the system)
+22. Appendix — contested claims & key academic citations
 
 ---
 
@@ -48,6 +54,8 @@ This is both a **research dossier** (what the signals are, where they live, how 
 **Global structure.** The US is a single-source firehose — SEC EDGAR: free, structured, near-real-time, and the **post-2023 Rule 10b5-1 checkbox is the single most powerful noise filter available**. Europe is fragmented across ~20+ national regulators/exchanges under EU MAR Article 19 (same legal concept — PDMR "managers' transactions," 3-business-day deadline, €5k de minimis — wildly different access). The UK's DTR **3% + each 1%** major-holdings threshold is the most sensitive early-accumulation tripwire in the world.
 
 **Build recommendation.** Start **US-only on EDGAR** (free, best data). Add the **UK** (RNS via Investegate) next. **Buy** a European feed (InsiderScreener ~€25–85/mo, or InsiderPulse) rather than scraping nine regulators. Layer **13D/activist** filings as the high-conviction institutional signal; treat **13F as late/stale context only**. Score 0–100, alert only above a high threshold, exclude the long tail of grants/options/tax/DRIP/microcap noise, and **report calendar-time alpha (not just event-time BHAR) net of costs** when you validate.
+
+**Commercially honest framing (read this twice).** Almost all the headline academic numbers (~6–10%/yr) are **gross of cost, pre-2010, and on the US large/mid universe**. The **net, post-2015, capacity-adjusted edge for an outsider is small and concentrated in exactly the illiquid small-caps you can't get institutional size in** — which, for a *retail* account, is an advantage, not a flaw (§21.4). And: **the discovery engine is only half the system. Signals are worthless without the §21 sizing, exposure and exit framework — that half decides whether you survive to collect the edge.** A backtested signal with no risk framework is still a path to ruin. Realistic per-trade hit rate is **~52–58%, not 80%+** — "insider bought and it kept falling" is the *base case*, not the exception (§21.7).
 
 ---
 
@@ -104,9 +112,9 @@ Filers = directors, officers, and >10% beneficial owners of a registered class.
 | **G** | Bona fide gift | No market trade — **exclude** |
 | **X** | Exercise of in/at-the-money derivative | Comp mechanics — **exclude** |
 | **C** | Conversion of derivative | Admin — **exclude** |
-| **D** | Disposition (sale) back to issuer | Buyback/redemption — not open-market |
+| **D** | Disposition (return) of issuer securities **back to the issuer under Rule 16b-3(e)** — comp-plan mechanic (e.g. cashless surrender) | Comp/admin — **exclude (NOT a corporate buyback;** company buybacks never appear on an insider Form 4 — they surface in the issuer's 8-K / 10-Q Item 703, see §7) |
 | **V** | Voluntarily reported early | Modifier flag, not a transaction |
-| **I** | Discretionary (broker best-price order) | Often plan-driven — edge case |
+| **I** | **Discretionary Transaction within an employee benefit plan** (Rule 16b-3) — intra-plan fund switch / cash distribution | Comp-plan admin — **exclude** (not an open-market order) |
 | **J** | Other acq/disp (see footnotes) | Manual review |
 | **W** | By will / descent | Inheritance — exclude |
 | **K** | Equity swap | Derivative — specialised |
@@ -115,13 +123,23 @@ Filers = directors, officers, and >10% beneficial owners of a registered class.
 | **Z** | Voting-trust deposit/withdrawal | Admin |
 | **O/E/H** | Out-of-money exercise / derivative expiry | Comp / admin |
 
-> **Mixed-filing trap:** a single Form 4 often bundles **M (exercise) + F (tax) + S (sale)**. Parse per-row; never sum shares naively. The cluster/buy filter must key on **code = P in the non-derivative table**.
+> **Mixed-filing trap:** a single Form 4 often bundles **M (exercise) + F (tax) + S (sale)**. Parse per-row; never sum shares naively. The cluster/buy filter keys on **code = P** — but see §14.0 for the **derivative-table P-buy** exception (an insider buying calls/warrants with cash is a real conviction buy that lives in the *derivative* table).
+> **M-and-hold ≠ M-and-flip (insider tell):** an insider who exercises options and **holds** (code M with *no* paired F/S sale) chose to keep the shares — mildly bullish. M + F + S in one filing is just cashless exercise — noise.
+> **Code A is not always pure noise:** a director *electing* to take the annual retainer in stock when a cash option exists is a mild positive (confirm via the DEF 14A election) — but a **DSU/deferred-comp deferral** of already-earned cash into units is neutral despite a large dollar value. See §7 fees-in-shares and §9.
 
 ### 3.3 Form 144 (proposed sales)
 Forward-looking **sell** signal filed *before* sale of restricted/control stock. Required when an affiliate intends to sell >**5,000 shares OR >$50,000** in any 3 months. **Electronic on EDGAR since compliance date Apr 13, 2023** (pre-2023 were paper → thin historical coverage). Source: sec.gov/submit-filings/.../file-form-144-electronically
+> **Insider tell:** a Form 144 is an *intention*, not an execution — many are filed and never (or only partly) sold; the actual sale later shows up as a Form 4 code S. The informative patterns are **a 144 with no follow-through Form 4** (changed their mind) or **rolling repeated 144s** (a programmatic seller). Brokers now auto-generate 144s for 10b5-1 plans, so a 144 alone is weak — pair it with the 4.
 
 ### 3.4 Rule 10b5-1 plans + the Form 4 checkbox (the key noise filter)
-Pre-arranged plans giving an affirmative defense; trades execute on schedule (low discretion). **2022 amendments (effective Feb 27, 2023):** cooling-off for directors/officers = later of **90 days** or **2 business days after next quarterly results, capped 120 days**; **30 days** for others. **Form 4/5 now have a mandatory checkbox** flagging a 10b5-1 trade. **Design insight:** a high-signal buy = **code P + 10b5-1 box NOT checked** (discretionary, opportunistic). This is the single best automated noise filter post-2023. Source: sec.gov/newsroom/press-releases/2022-222
+Pre-arranged plans giving an affirmative defense; trades execute on schedule (low discretion). **2022 amendments (effective Feb 27, 2023):** before trading may begin under a new/modified plan, directors & officers must observe a cooling-off period = **the later of (i) 90 days after adoption/modification, or (ii) two business days after disclosure of results for the fiscal quarter of adoption — but in no event more than 120 days** (the 120-day cap applies to limb (ii)); **30 days** for other persons. Plus a **good-faith condition, a director/officer bona-fide certification, and limits on overlapping/single-trade plans**. **Form 4/5 now carry a mandatory checkbox** flagging a 10b5-1 trade. **Design insight:** a high-signal buy = **code P + 10b5-1 box NOT checked** (discretionary, opportunistic) — the single best automated noise filter post-2023.
+> **Advanced tell — plan termination/modification (Item 408):** plan *adoption, modification and termination* are **not** Form 4 events — they're disclosed in the **10-Q/10-K under Reg S-K Item 408(a)** (post-2023). An insider who **cancels a scheduled selling plan right before a run** (then buys, or simply stops selling) is a tell scrapers miss → parse Item 408 (§14.0); treat *sell-plan termination + subsequent P buy* as a conviction amplifier, *new sell-plan adoption* as a soft negative. Source: sec.gov/newsroom/press-releases/2022-222
+
+### 3.4a Section 16(b) short-swing profit rule — *why a P buy is high-commitment*
+**Section 16(b)** forces an insider to disgorge any profit from a matched purchase-and-sale (or sale-and-purchase) **within any 6-month window — regardless of intent or whether they had MNPI.** Consequences the model must encode:
+- An insider who buys on the open market is **legally locked out of selling at a profit for 6 months.** So a code-P buy is a *more costly, more committed* signal than outsiders realise — it reinforces the conviction weighting (§8 factor 5).
+- It explains benign patterns the model might misread: an insider **won't buy** in the 6 months after a sale (to avoid an automatic match). Absence of buying isn't always bearish.
+- A buy that the insider *knows* locks them up for 6 months, made anyway into a drawdown, is the cleanest "I expect this higher within a year" statement available in the data.
 
 ### 3.5 US data access (free, no key)
 - **EDGAR Full-Text Search:** `https://efts.sec.gov/LATEST/search-index?q=...&forms=4&startdt=YYYY-MM-DD&enddt=YYYY-MM-DD` (JSON; filings since 2001; CORS-enabled).
@@ -184,7 +202,7 @@ Form **"TR-1: Standard form for notification of major holdings"** under **DTR 5*
 ### 5.1 The original nine
 | Country | Hosted at | Portal | Free/Search | Machine access | Tier |
 |---|---|---|---|---|---|
-| **Germany** | Regulator (BaFin) | portal.mvp.bafin.de/database/DealingsInfo | Yes | Browse-only; no API/CSV found; 12-mo retention; threshold €20k→**€50k from 2026** | 2 (scrape) |
+| **Germany** | Regulator (BaFin) | portal.mvp.bafin.de/database/DealingsInfo | Yes | Browse-only; no API/CSV found; 12-mo retention; threshold €20k→**€50k from 2026 [LEGAL FLAG: €50k exceeds the MAR Art.19(9) €20k member-state ceiling — only valid if the EU Listing Act (Reg (EU) 2024/2809) raised the base figure; verify before relying]** | 2 (scrape) |
 | **Sweden** | Regulator (FI) | marknadssok.fi.se Insynsregistret | Yes | **CSV/Excel export**; data 2016+; libs `djonsson/insynsregistret` (Py), `w3stling/insynsregistret` (Java) | **1 (best)** |
 | **France** | Regulator (AMF) | bdif.amf-france.org (BDIF) | Yes | PDFs + **RSS**; structured only via 3rd-party (data.gouv.fr "transactions dirigeants" = scraped by LesTransactions.fr, **not** official) | 2/3 |
 | **Netherlands** | Regulator (AFM) | afm.nl MAR19 register | Yes | **CSV + XML export** (cleanest EU) | **1** |
@@ -215,7 +233,7 @@ Form **"TR-1: Standard form for notification of major holdings"** under **DTR 5*
 ## 6. Institutional "Smart Money"
 
 ### 6.1 Form 13F
-Institutional managers with **>$100M** in 13(f) securities; quarterly, **45-day lag** after quarter-end. **Limitations:** long US-listed only (no shorts, cash, bonds, non-US); end-of-quarter **snapshot** (no trade dates/turnover/cost basis); hedging invisible; **confidential-treatment requests** let managers hide accumulation in real time. (Separate Rule 13f-2 / Form SHS short-reporting regime, Oct 2023, is aggregate/confidential.) Source: SEC 13F FAQ
+Institutional managers with **>$100M** in 13(f) securities; quarterly, **45-day lag** after quarter-end. **Limitations:** long US-listed only (no shorts, cash, bonds, non-US); end-of-quarter **snapshot** (no trade dates/turnover/cost basis); hedging invisible; **confidential-treatment requests** let managers hide accumulation in real time. (Separate Rule 13f-2 / **Form SHO** short-position regime adopted Oct 2023 but **repeatedly delayed — compliance now Jan 2, 2028 (first filings Feb 14, 2028)** after the Fifth-Circuit remand; aggregate/confidential, and **not a usable signal source for years**. For institutional *short positions* there is still no US disclosure.) Source: SEC 13F FAQ; Morgan Lewis (Dec 2025) on the 2028 extension.
 
 ### 6.2 Schedule 13D vs 13G + 2023 amendments
 - **13D** = >5% with **control intent** (active, "loud"); **13G** = >5% passive/qualified (three filer types). Beneficial owner = anyone with voting **or** investment power, directly or indirectly (captures trusts/LLCs/nominees).
@@ -224,7 +242,7 @@ Institutional managers with **>$100M** in 13(f) securities; quarterly, **45-day 
 | Filing | Old → New |
 |---|---|
 | 13D initial | 10 cal days → **5 business days** |
-| 13D amendment | "promptly" → **2 business days** after material change (≥1% presumed material) |
+| 13D amendment | "promptly" → **2 business days** after material change (a ≥1% change is *generally treated as* material — an interpretive guideline, not a bright line in the 2023 text) |
 | 13G initial (QII/Exempt) | 45 days after year-end → **45 days after quarter-end** (10% accelerated trigger) |
 | 13G initial (Passive) | 10 days → **5 business days** |
 | 13G amendment | any change → only on **material change**, 45 days after quarter-end |
@@ -232,12 +250,22 @@ Institutional managers with **>$100M** in 13(f) securities; quarterly, **45-day 
 Compliance: 13D Feb 5, 2024; 13G Sept 30, 2024. EDGAR cutoff extended to 10pm ET. **Group rule (Rule 13d-5):** persons "acting together" treated as one — detects coordinated sub-5% accumulation across affiliated vehicles.
 
 ### 6.3 The activist signal
-**Item 4 "Purpose of Transaction"** is the tell: language shifting from "shares acquired for investment" → board nomination, strategic alternatives, opposing a merger, going-private. **13G→13D conversion** = passive holder turning active (strong). 
+**Item 4 "Purpose of Transaction"** is the tell: language shifting from "shares acquired for investment" → board nomination, strategic alternatives, opposing a merger, going-private. **13G→13D conversion** = passive holder turning active (strong). A 13D from a **known activist with a specific Item 4 catalyst** is a *catalyst-with-a-clock*; a 13D from an operating company or founder is a **control event**, not a campaign; a **13G is ownership, not a view** (Vanguard/BlackRock/State Street file 13G on nearly everything — ~zero alpha).
+- **Read the exhibits, not just the cover.** The **13D Item 4 + any EX-99 letter/deck** is the actual research — thesis, target price, timeline. The engine should fetch and parse Item 4 and EX-99 exhibits, not merely log "13D filed."
+- **Wolf-pack tell:** when one activist files, watch for *clustered* new 13D/13G filings by sympathetic funds within ~2 weeks (informal packs stay sub-5% individually). Flag **multiple new institutional filers on one issuer in a 2-week window.**
 
-### 6.4 Signal timing & the 13F staleness trap
-- **EARLY / high-conviction:** new **13D** (≤5 bd), Item 4 activist language, 13G→13D, small/concentrated-fund **new** position.
-- **LATE / low-info:** large add to an already-public 13F position; widely-reported "whale" 13F (45-day stale, crowded, arbitraged within hours). Practitioner claim that 13F-cloning underperforms by 2–4%/yr [LOW — not peer-reviewed].
-- **When 13F still helps:** concentrated "best ideas" (top-10 picks outperform — SSRN 3459526), small/niche less-scraped funds, new positions, **positions backed by a 13D** (independent conviction).
+### 6.3a The Archegos / cash-settled-swap blind spot (critical)
+Ownership filings (13D/G/13F) are **structurally blind to the largest modern accumulations.** Cash-settled total-return swaps confer **economic** exposure without **voting/investment power**, so they generally **do NOT count toward the 5% Section 13 trigger.** Archegos held ~$30bn+ of single-stock economic exposure (Viacom, Discovery…) entirely invisible until it imploded in March 2021. The 2023 amendments revised **Item 6** to require a 13D filer to *itemise* cash-settled derivatives — but **only after they already crossed 5% on stock alone**; swaps still don't trip the trigger. **Practical consequence: absence of a 13D is weak evidence of absence.** Cross-check 13F **PUT/CALL** option lines (13F does capture listed options), unusual single-stock gamma, and prime-broker concentration chatter.
+
+### 6.4 Signal timing & why 13F-cloning fails
+- **EARLY / high-conviction:** new **13D** (≤5 bd), Item 4 activist language, 13G→13D, small/concentrated-fund **new top-5** position.
+- **LATE / low-info:** large add to an already-public 13F position; widely-reported "whale" 13F (45-day stale, crowded, arbitraged within hours).
+- **Why 13F-cloning fails (4 structural reasons, not just staleness):** (1) **45-day lag** — you buy what a fund bought up to ~135 days ago; (2) **no exit visibility** — you see entries, never sells, so you ride losers down; (3) **press survivorship** — only winning whales get covered, so cloned baskets are hindsight-selected; (4) **gross-long blindness** — you can't see the hedge, so you clone a long the fund holds market-neutral. The only cloning that survives academically is **concentrated best-ideas of low-turnover managers** (top position, not the tail — SSRN 3459526). Only surface a 13F line when it is a **new top-5 position of a tier-1 concentrated filer** (§6.7), never the full book.
+
+### 6.7 Filer-quality tiering (how pros actually use 13F/13D)
+A "score 87" on a filer means nothing without knowing *who* filed. Tier the universe:
+- **FOLLOW (high signal):** concentrated, low-turnover, single-decision-maker **activists** (Elliott, Starboard, ValueAct, Pershing Square, Trian, Third Point) and **concentrated long-onlys** (top-10 = >60% of AUM). Conviction proxies to compute per filer: **(a) position as % of 13F AUM; (b) Herfindahl book concentration; (c) is it a top-10 holding; (d) new vs add vs trim QoQ; (e) for 13D, the filer's historical activist win-rate** (proxy: % of past campaigns achieving board seats / sale / >X% 12-mo excess).
+- **IGNORE (noise):** **multi-strat / pod shops** (Citadel, Millennium, Point72) — a 13F is their gross long book of ~1,000 hedged names, short side invisible, so "new position" is meaningless; **index/quant** (Renaissance, AQR, DE Shaw) — systematic, not thesis-driven; anything with **>300 positions or <2% top weight**.
 
 ### 6.5 UK TR-1 / EU Transparency vs US
 UK **3%+1%** (earliest), EU **5%+** (Transparency Directive 2004/109/EC; 4-trading-day notify, 3-day publish), US **5%** (now 5 bd). The UK threshold remains the most sensitive early-accumulation tripwire.
@@ -263,28 +291,60 @@ EDGAR (13F-HR, SC 13D/13D-A, SC 13G/13G-A); **13F.info**, **HedgeFollow** (also 
 | **"Contradictory" buys after earnings miss** | **HIGH** — Dargenidou et al.: buys before/around negative surprises are unusually informative, speed PEAD correction | Code-P buys in [0,+5d] after an earnings 8-K with negative surprise |
 | **Directors taking fees in shares** | **LOW / thin — no isolating study**; code-A non-cash, weaker than P | Form 4 code **A** + $0 price + "in lieu of cash fees" footnote; confirm voluntariness in DEF 14A. Low-weight corroborator only |
 
+### 7a. Sector priors — where insider buying is MORE vs LESS informative
+One scoring model for all sectors is naive. Apply heavy sector priors (multiply factor 1/the signal score):
+- **Financials (banks/insurers) — UPWEIGHT.** Management sees the loan book and reserve adequacy before anyone; cluster buying at a sound-balance-sheet bank during sector stress (cf. 2023 regional banks) is top-tier.
+- **Biotech / binary-event names — HEAVY DOWNWEIGHT.** Insider buys ahead of a Phase 3 readout are a coin-flip and can be promotional or precede a dilutive raise; require a non-binary thesis.
+- **Commodities / miners / E&P — DOWNWEIGHT.** Insider buys track commodity-price beta, not stock-picking skill — treat as a leveraged macro proxy.
+- **SPACs — EXCLUDE / hard-downweight.** Sponsor economics (founder shares ~$0) make "insider buying" near-meaningless and conflicted.
+- **ADRs / foreign issuers — ROUTE TO HOME FEED.** Form 4 coverage is patchy; the home-jurisdiction disclosure (§4–§5) is the real source; FX overlays the return.
+- **REITs — MEDIUM, normalise.** Informative on NAV-discount closure but distorted by OP-units and DRIPs.
+
+### 7b. Special situations — the highest-alpha insider context
+- **Spin-offs (top-tier):** insider/new-management buying in the *spun* entity in its first 1–2 quarters is one of the best-documented signals — index funds force-sell the spinco, informed insiders buy the mispricing. Add as a dedicated signal type.
+- **Post-bankruptcy / fresh-start equity:** new-money insiders and reorg sponsors buying the new equity = strong (they re-underwrote the whole capital structure); watch the ad-hoc creditor group's 13D converting to equity.
+- **Rights issues / discounted placings:** the real tell is insider **over-subscription** (taking up *more* than pro-rata), not merely "avoiding dilution."
+
 ---
 
 ## 8. Signal-Quality Scoring Model (0–100)
 
-Weighted additive score, then **multiplicative kill-switch penalties** (§9), then map to alert tiers. Weights are a defensible starting point grounded in §2 evidence — **backtest and recalibrate (§15) before trusting them.**
+**Model architecture (quant-reviewed).** The additive integer table below is the **explainable v0 / cold-start prior** — NOT the production model. A hand-weighted additive score with arbitrary points is statistically indefensible because the factors are **correlated** (cluster ⟂ role ⟂ size ⟂ small-cap all co-move, so summing them *triple-counts* the illiquidity axis — the least reliable one). Production path:
+1. **Unit of analysis = the issuer-cluster-event** (aggregate transaction-level features to the event grain), not the raw transaction — this also fixes cluster double-counting.
+2. **Standardise** each continuous factor (cross-sectional percentile-rank or z-score), **winsorise 1/99%**.
+3. **Combine via a calibrated, regularised model** — elastic-net logistic regression or a monotonic-constrained gradient-boosted tree — trained on a forward-return label (e.g. 6-month factor-adjusted abnormal return > threshold), with **purged, embargoed walk-forward CV** (overlapping return windows leak), class weighting (positives are rare), and **isotonic/Platt calibration** so "score 87" ≈ a real P(outperform) / expected abnormal return.
+4. Keep the linear table as the prior and **log both scores** to A/B the learned model before trusting it; feed **SHAP values** into the §16 memo's `score_rationale` so explainability survives the upgrade.
+5. **Kill-switches (§9) are hard gates on the input universe (pre-model)**, not point deductions — they must not distort a calibrated probability.
+
+Weights below are a defensible *starting prior* grounded in §2 — **backtest and recalibrate (§15) before trusting them.** Factors marked *(gate)* are mandatory pre-score checks.
 
 | # | Factor | Max | Logic |
 |---|---|---|---|
-| 1 | **Transaction type** | 20 | Open-market cash purchase (code P / "market purchase") = 20; PIPE participation at deal price = 14; placing take-up = 10; code-A fees-in-shares = 3; else 0 |
+| 1 | **Transaction type** | 20 | Open-market cash purchase (code P / "market purchase") = 20 **only if price > 0 AND on-venue (MIC) AND not "linked to a share-option/award programme"** (otherwise it's scrip/DRIP/grant → 0); PIPE participation at deal price = 14; placing take-up = 10; code-A *elective* fees-in-shares = 3; else 0 |
 | 2 | **Insider role** | 12 | Founder/CEO/**CFO**/Chairman = 12; other C-suite/exec dir = 9; non-exec = 6; 10% holder = 5; else 2. *(CFO purchases ~5pp/yr more informative than CEO — Wang-Shin-Francis; 10% holders least informative.)* |
 | 3 | **Cluster** | 15 | 5+ distinct insiders (≤15d) = 15; 3–4 = 11; 2 = 6; 1 = 0 |
 | 4 | **Size vs context** | 12 | Scale by **% of prior holding / $ vs salary / $ vs ADV** — NOT raw $. Meaningful = up to 12; token = 0. *(Cziraki-Gider: % returns negatively correlated with raw size — normalise.)* |
 | 5 | **Conviction / discretion** | 8 | Discretionary (10b5-1 box unchecked) & opportunistic (breaks routine) = 8; routine = 2; 10b5-1 planned = 0 |
-| 6 | **Timing context** | 12 | Buy after large drawdown / earnings miss / litigation / short attack / sector panic = up to 12; into strength = low |
-| 7 | **Valuation & balance sheet** | 8 | Cheap (high B/M, low EV/EBITDA) + solid balance sheet = 8; expensive/distressed = low/neg |
-| 8 | **Company size / coverage** | 6 | Low coverage / small-mid cap (above microcap floor) = 6; mega-cap = 2. *(Causal: Wu — losing 1 analyst at ≤5-coverage firm → +16% purchase abnormal return; but small-firm effect method-contested per JMZ — keep modest.)* |
-| 9 | **Insider track record** | 4 | Prior buys preceded gains = 4; poor/none = 0–2 |
+| 6 | **Timing context** *(gate on 7)* | 12 | Buy after large drawdown / earnings miss / litigation / short attack / sector panic = up to 12 — **BUT this is also the value-trap/falling-knife factor.** A drawdown buy only scores high if factor 7 (balance sheet) passes; a cluster buy into a 60% drawdown at a cash-burning microcap is the textbook *value trap*, not conviction. The two look identical on the Form 4 — only the balance sheet separates them. **Down-weight buys that merely coincide with the first open trading window post-results** (that's the legal norm, not a signal — see §4 closed periods), unless unusually large vs the insider's own history. |
+| 7 | **Valuation & balance sheet** *(gate)* | 8 | Cheap (high B/M, low EV/EBITDA) + solid balance sheet = 8; expensive/distressed = low/neg. **Forward distress screen (hard gate):** going-concern language, covenant-breach/refinancing risk, auditor change/material weakness, or falling cash runway → cap factor 6 and downgrade regardless of insider buying. |
+| 8 | **Company size / coverage** | 6 | Low coverage / small-mid cap (above microcap floor) = 6; mega-cap = 2. *(Causal: Wu — losing 1 analyst at ≤5-coverage firm → +16% purchase abnormal return; but small-firm effect method-contested per JMZ — keep modest; reconcile with the §9.10 microcap floor so the model doesn't surface un-investable £20m promotional names.)* |
+| 9 | **Insider track record** | 4 | Per-insider historical forward-return **hit-rate, empirical-Bayes shrunk** toward the role/sector mean (most insiders have too few trades for a raw rate). Prior buys preceded gains = up to 4. |
 | 10 | **Ownership meaningfulness** | 3 | Buy materially raises stake = 3; rounding error = 0 |
 | 11 | **Strategic-scarcity / theme fit** | 3 | Bottleneck/future-theme fit = 3 |
-| — | **Conflicting insider selling** | −10 | Other insiders selling open-market same window |
+| +A | **First-buy amplifier** | +4 | **First open-market P buy by this insider in ≥24 months** (the cleanest "break from routine") |
+| +B | **Disguised-accumulation amplifier** | +3 | Same beneficial owner buying across **multiple controlled vehicles** (indirect "I" lines) in the window — deliberate and inconvenient = conviction |
+| GATE | **Net-buy-ratio (KILL-SWITCH, not −10)** | gate | Compute **NPR = (buys − sells)/(buys + sells)** across **ALL insiders and ALL their vehicles** in the window. Net distribution dressed as a cluster (CEO buys £412k while a co-founder quietly sells £2m via another vehicle / a 144) **fails the gate** — do not alert. (Replaces the old additive −10, which left a strong buy at 77 = still "watchlist".) |
 
-**Tiers:** 80–100 = high-conviction alert; 60–79 = watchlist; <60 = log only. Kill switches (§9) can hard-cap/zero regardless of points.
+**Tiers:** 80–100 = **high signal quality** (NOT "high conviction" — it is a signal score, not a probability or a sizing instruction); 60–79 = watchlist; <60 = log only. Kill-switches (§9) and the NPR gate hard-cap/zero regardless of points.
+
+### 8a. The second axis — Tradeability (0–100)
+A 95-signal in a name you can't get size in, can't exit, and that already gapped up on the filing is **untradeable**. Compute a separate **Tradeability score** and make the **final action = f(signal, tradeability)**:
+- **Liquidity:** can you build target size in ≤10–20% of 20-day ADV over ≤5 days?
+- **Float / overhang:** tiny float + concentrated insiders = squeeze *and* exit risk.
+- **Already-arbitraged?** gapped >X% on the filing day, or already front-page on OpenInsider → signal partly spent (pay up only for *un-crowded* signals).
+- **Catalyst path & runway:** is there a dated catalyst within the horizon, and does the balance sheet survive to reach it?
+- **Sector regime:** factor wind at your back or in your face?
+High signal + low tradeability = **starter/watchlist, not a full position** (sizing in §21).
 
 ---
 
@@ -293,18 +353,21 @@ Weighted additive score, then **multiplicative kill-switch penalties** (§9), th
 **Hard EXCLUDE (never a buy signal):**
 1. Grants/RSUs/options — codes **A, M, X, C**.
 2. Tax-withholding — code **F**.
-3. Gifts/inheritance **G, W**; voting-trust **Z**; disposition-to-issuer **D**.
-4. DRIP / dividend reinvestment (footnote).
+3. Gifts/inheritance **G, W**; voting-trust **Z**; disposition-to-issuer **D** (Rule 16b-3(e) return, not a buyback).
+4. DRIP / dividend reinvestment (footnote); **RSU dividend-equivalent accruals** (code A, tiny, recurring).
 5. ESPP / SAYE / SIP routine scheme purchases (footnote "under the Plan"; discount price).
+6. **Code I** discretionary 401(k)-type intra-plan switches; **DSU/deferred-comp deferrals** of earned cash into units (large $, zero conviction).
+7. **Estate-planning transfers** between an insider and their own trust ("no change in beneficial ownership" footnote); **dual-class conversions** of one share class to another (economically neutral).
 
 **DOWNGRADE / kill-switch:**
-6. **10b5-1 plan trades** (checkbox set).
-7. **Tiny/symbolic** buys (below $ floor and %-of-salary/holding floor; drop code **L**).
-8. **Loan/margin-funded or pledged** purchases (academically underperform — Garfinkel; check pledging disclosure).
-9. **Compliance buys** only to meet ownership guidelines (check policy + whether below threshold near a deadline).
-10. **Illiquid microcap / penny-stock / promotional** (liquidity & market-cap floor; flag abnormal volume without 8-K news; cross-ref SEC trading suspensions).
-11. **Buys preceding dilution** (scan forward 30–90d for S-1/S-3/424B/8-K offerings; unless insider bought *into* the raise).
-12. **Toxic-PIPE terms** (variable-conversion/repricing/death-spiral; deep contingent discounts — Brophy; Chaplinsky-Haushalter).
+8. **10b5-1 plan trades** (checkbox set) — for *buys* too (systematic accumulation plans), not just sells.
+9. **Tiny/symbolic** buys (below $ floor and %-of-salary/holding floor; drop code **L**).
+10. **Loan/margin-funded or pledged** purchases (academically underperform — Garfinkel). Scan footnotes/prior 4s for `pledge`/`pledged as collateral`/`margin`; **new pledging concurrent with a "buy" = strong downgrade** (increasing leverage, not net economic exposure). Conversely an insider *removing* a pledge or buying with disclosed cash is the real tell.
+11. **Compliance buys** only to meet ownership guidelines — check policy, whether below threshold near a deadline, **newly-appointed insiders buying within ~12m of their Form 3**, and buys sized suspiciously close to the exact guideline shortfall.
+12. **Illiquid microcap / penny-stock / promotional** (liquidity & market-cap floor; flag abnormal volume without 8-K news; cross-ref SEC trading suspensions).
+13. **Buys preceding dilution** (scan forward 30–90d for S-1/S-3/424B/8-K offerings; unless insider bought *into* the raise) AND the **forward distress screen** (going-concern, covenant breach, auditor change, falling runway — §8 factor 7 gate). A confidence-signal buy into distress that precedes a rescue raise/restatement is the dark twin of a conviction cluster.
+14. **Toxic-PIPE terms** (variable-conversion/repricing/death-spiral; deep contingent discounts — Brophy; Chaplinsky-Haushalter).
+15. **New 10b5-1 sell-plan adoption** (Item 408) as a soft negative overlay; **late filing** (`transactionTimeliness=L`) as a data-quality flag *and* a minor signal (shifts the tradeable date — see §15.3).
 
 ---
 
@@ -389,6 +452,15 @@ Weighted additive score, then **multiplicative kill-switch penalties** (§9), th
 
 ## 14. Ingestion & Parsing (engineer-ready)
 
+### 14.0 Entity resolution — the biggest data-quality risk (build this first)
+The cluster filter ("dedupe by CIK"), the insider-track-record feature, and the founder/holdco chain **all silently assume identity is resolved.** It isn't, by default:
+- **CIK is a filer-account key, NOT a human.** One person routinely has **multiple CIKs** (personal + trust/LLC/foundation accounts; career name variants) and a single CIK whose `rptOwnerName` string drifts (marriage, "Smith John Q" → "Smith John Quincy Jr"). Conversely an **issuer CIK can be repurposed** when a shell/SPAC changes business. **Fix:** add an `insider_identity` resolution layer keyed on `(normalized_name, set_of_issuer_ciks, address_hash)` (deterministic + probabilistic match); FK transactions to a surrogate `insider_identity_id`, NOT the raw CIK. (The §16.3 `insiders (cik unique)` is therefore wrong — see the corrected schema.)
+- **Issuer identity drift:** ticker changes (FB→META), CUSIP/ISIN changes on reincorporation/reverse-split/redomicile, issuer CIK surviving a name change, M&A (target stops filing). **ISIN is NOT time-invariant.** Add an `instrument_identifier_history(issuer_id, id_type, value, valid_from, valid_to)` table and resolve each filing's symbol **as of the transaction date**; map via **FIGI** (more stable than ISIN across corporate actions).
+- **Amendment (4/A) handling:** a 4/A often **restates the shares/price themselves**, so matching on `(shares,price)` fails and you double-count. Build a supersession key on `(insider_identity_id, issuer_id, period_of_report, security_title)`; treat the amendment's table as authoritative; track `is_amendment, amends_accession(best-effort), superseded_by`; distinguish "restates a row" vs "adds an omitted row".
+- **Per-row integrity:** add `txn_line_no` to the dedup key so two legitimate same-day, same-code rows at different prices don't collapse.
+- **Bitemporal:** store `valid_time` (transaction date — when true in the world) and `system_time` (EDGAR acceptance datetime — when you learned it). This is what makes point-in-time backtests (§15) correct.
+- **DQ telemetry:** a `dq_checks` table per batch (% imputed price, % unmatched tickers, % schema-fail, late-filing rate, point-in-time-vs-final cluster divergence). Insider feeds break silently on schema bumps/vendor backfills.
+
 ### 14.1 Form 4 ownership XML schema
 Official spec: **"EDGAR Ownership XML Technical Specification"** (v5.x) — sec.gov/info/edgar/ownershipxmltechspec.htm; XSD `ownership4Document.xsd`.
 
@@ -419,7 +491,9 @@ Official spec: **"EDGAR Ownership XML Technical Specification"** (v5.x) — sec.
   <footnotes> → <footnote id="F1">text</footnote>   (value elems carry <footnoteId id="F1"/>)
 ```
 - **10b5-1 checkbox** (EDGAR Release 23.1, ~Mar 2023): per-transaction boolean inside `<transactionCoding>` — observed tag **`aff10b5One`** [MED — verify against live XSD / a post-2023 `primary_doc.xml`]. Pre-2023: only via footnote regex `/10b5-1/i`.
-- **Buy/sell determination:** `transactionCode == 'P'` AND `transactionAcquiredDisposedCode == 'A'` in the non-derivative table = open-market buy.
+- **Buy/sell determination:** `transactionCode == 'P'` AND `transactionAcquiredDisposedCode == 'A'` in the **non-derivative** table = open-market buy. **Don't stop there:** also flag `derivativeTransaction` with `transactionCode == 'P'`, `A/D == 'A'` and a non-nil cash price (a director buying calls/warrants with cash — a real, separately-weighted conviction buy). Compute `share_equivalents` = direct shares + conversion-ratio- (ideally delta-) adjusted derivative shares so "% of holdings raised" is economically correct.
+- **Price quality:** `transactionPricePerShare` is frequently **blank, $0, or a footnoted weighted-average range**. Add `price_source ∈ {reported, footnote_range_midpoint, vwap_imputed, missing}` and a `price_quality` flag; impute from the footnote-range midpoint or day VWAP, and **never let an imputed price feed the dollar-size factor unflagged** (the `usd_value GENERATED` column will otherwise silently produce 0/NULL and mis-score §8 factor 4). Distinguish `shares` from `share_equivalents` (LP units/RSUs counted as shares).
+- **Timezone:** EDGAR `acceptance-datetime` is US/Eastern; `transactionDate` has no tz. Store `acceptance_datetime_utc` and define the **tradeable timestamp = next regular session open after acceptance in the issuer's listing-venue timezone** (a 21:00-ET acceptance is next-day in London).
 
 ### 14.2 Discovering new filings
 - **Real-time-ish:** Atom `https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom` (poll every few sec within 10/s). Also types 3,5,SC 13D,SC 13G,13F-HR.
@@ -469,7 +543,11 @@ Official spec: **"EDGAR Ownership XML Technical Specification"** (v5.x) — sec.
 2. **Survivorship/delisting bias:** include later-delisted/bankrupt firms; apply CRSP delisting returns (often large negative), especially in small caps where the signal lives.
 3. **Point-in-time fundamentals** (size/B-M as-known-then, not restated).
 4. **Illiquidity/microcap concentration:** strongest returns where spreads widest & capacity lowest.
-5. **Transaction costs & decimalization:** model per-name spread + commission; **cap simulated size as % of ADV**; report **gross AND net**. Insider profits shrink substantially net of costs (Seyhun); dollar profits small (Cziraki-Gider).
+5. **Transaction costs & decimalization:** model per-name spread + commission + **market impact (square-root model)**; **cap simulated size as % of ADV**; report **gross AND net**. Insider profits shrink substantially net of costs (Seyhun); dollar profits small (Cziraki-Gider). **UK/EU-specific (the doc goes UK-heavy):** add **UK stamp duty 0.5% on purchases** and **FR/IT financial-transaction tax** — a real, asymmetric, often-omitted cost that materially changes UK net returns and argues for fewer/longer holds. For T212, simulate fills at the **actual venue close/VWAP** (fractional orders execute internally), not an idealised mid.
+6. **Multiple-testing / p-hacking (absent in v2):** you will test many windows (7/15/90d), weightings and thresholds — apply a **deflated Sharpe ratio / Probability of Backtest Overfitting (Bailey-López de Prado)** and **Benjamini-Hochberg FDR** control on factor t-stats. The §15.6 "top-minus-bottom spread t-stat" is meaningless after an unrecorded search.
+7. **Point-in-time CLUSTER (subtle):** a cluster is only "known" as each constituent Form 4 *files*. Labelling a buy "part of a 4-insider cluster" using filings that arrived *after* your entry date is look-ahead. **Compute the cluster point-in-time** — only insiders whose Form 4 has been *filed* as of the decision timestamp count (interacts with the T+2/late-filing lag: a cluster can look solitary at entry and grow later).
+8. **Point-in-time fundamentals VENDOR bias:** the §12 vendors (EODHD/FMP/yfinance/SimFin) are **restated and survivorship-pruned, not point-in-time** — their "historical" fundamentals contaminate factors 7/8 with look-ahead. Snapshot fundamentals **as-reported-then** yourself (the §16.3 `scores.enrichment` snapshot is the mechanism — extend it) and distrust vendor history.
+9. **Crowding / alpha decay & regime:** measure it — rolling-window alpha plot + structural-break test; insider-mimicking alpha has compressed post-SOX/decimalisation and as scrapers proliferated. Report alpha by sub-era and conditioned on volatility/value-spread regime (this is a value/contrarian trade — it draws down hard in momentum-led regimes).
 
 ### 15.4 Construction & holding period
 - **Long-only on purchases** (sales uninformative → shorting them adds noise/cost; hedge market-wide instead).
@@ -490,7 +568,9 @@ Per score-bucket/decile and overall: **hit rate**; **avg forward abnormal return
 ### 16.1 AI research memo
 **Model:** use the latest Claude Opus tier (e.g. `claude-opus-4-8`) for the memo step — large context (fits the full enrichment bundle without chunking), strong "answer only from supplied data" grounding, and JSON structured output. Cost levers: **Message Batches API (−50%)**, **prompt caching** on the frozen system block, and route only high-score signals to Opus (bulk to a cheaper Sonnet tier). Daily memo run isn't latency-sensitive → batch it.
 
-**System prompt (frozen, cache it):** establishes guardrails — (1) ground strictly in supplied `<signal_data>`; (2) no fabrication / no training-data facts about the issuer; (3) distinguish fact vs inference (hedge inferences); (4) not investment advice; (5) quantify confidence; terse analyst register.
+**System prompt (frozen, cache it):** establishes guardrails — (1) ground strictly in supplied `<signal_data>`; (2) no fabrication / no training-data facts about the issuer; (3) distinguish fact vs inference (hedge inferences); (4) not investment advice; (5) quantify confidence; terse analyst register; **(6) give `risks[]` and `bear_case` EQUAL length/weight to the bull thesis** — a fluent memo manufactures false confidence (the #1 solo-operator behavioural risk, §21.9); **(7) if liquidity (ADV), borrow, or balance-sheet-runway data is missing, state that sizing CANNOT be recommended and cap the conviction tier at "Starter/Watchlist."**
+
+**Decision-grade output (a PM cannot act on a "score of 87").** The memo schema must add, beyond the v2 fields (thesis, valuation, catalysts, risks, score_rationale, what_would_invalidate, confidence, disclaimer): **`conviction_tier` (Starter/Half/Full), `suggested_size` (as % NAV *and* as multiple of ADV, with the binding constraint named — e.g. "0.8% NAV, capped by ADV not conviction"), `catalyst_timeline` (dated events: next earnings, 13D milestones, refi, lock-up expiry, index rebal), `bear_case` (the specific path to a −30% loss), `peer_comp` (valuation vs 3–5 named peers — "cheap vs peers AND history", not just vs its own history = the value-trap tell), `expected_value` (rough P(win)×upside vs P(loss)×downside), `time_stop` (exit date if no catalyst progression — edge decays, §15.4), and `probability_of_loss`.** Optionally run a separate **red-team memo pass** that only argues the bear case.
 
 **User message (per-signal):** inject issuer, the Form 4 buy (insider, role flags, dates, filing lag, code, shares, price, % change in holding, direct/indirect), insider 24-mo history, cluster context, valuation/balance-sheet snapshot, the 0–100 score + component breakdown, and an explicit DATA GAPS list. Ask for sections: `thesis, insider_conviction_read, valuation_balance_sheet, catalysts[], risks[], score_rationale, what_would_invalidate[], confidence(enum), disclaimer`.
 
@@ -512,8 +592,8 @@ resp = client.messages.create(
 - **Email (digest):** Amazon SES (~$0.10/1k — leanest) or SMTP2GO free tier; **SendGrid free plan retired May 2025**. Use for daily/weekly digests, not per-signal.
 - **Web dashboard (system-of-record):** FastAPI/Flask/Streamlit over the Postgres `alerts`/`memos` tables; triage UI, filters, filing links. Telegram/email link back to it.
 
-### 16.3 Postgres schema (DDL sketch)
-Tables: **filings** (raw, immutable; `accession_no` unique, `raw_uri`+`raw_sha256`), **issuers**, **instruments** (issuer_id, ticker, **isin unique**, figi, exchange, **t212_ticker/t212_isin**, is_tradable_t212), **insiders** (cik unique, entity_type), **insider_roles** (N-N insider↔issuer, role flags, observed_from/to), **transactions** (filing_id, insider_id, issuer_id, instrument_id, txn_date, txn_code, acquired_disposed, is_derivative, shares, price, **usd_value generated**, shares_owned_after, ownership_nature; UNIQUE tuple for dedup; partial index `WHERE txn_code='P'`), **scores** (transaction_id, score, **components jsonb**, model_version, **enrichment jsonb** snapshot), **memos** (score_id, **body jsonb**, llm_model, tokens), **alerts** (score_id, channel, status, **dedup_key unique** for idempotency, sent_at). Natural-key UNIQUEs on filings/transactions/alerts give end-to-end idempotency.
+### 16.3 Postgres schema (DDL sketch) — *with v3 corrections*
+Tables: **filings** (raw, immutable; `accession_no` unique, `raw_uri`+`raw_sha256`, `acceptance_datetime_utc`, `parsed_schema_version`, `reprocess_needed`); **issuers** + **issuer_alias**; **instruments** (issuer_id, ticker, isin, figi, exchange, **t212_ticker/t212_isin**, is_tradable_t212) + **instrument_identifier_history** (`id_type, value, valid_from, valid_to` — ISIN is NOT time-invariant, §14.0); **insiders** (`rpt_owner_cik UNIQUE` — *not* "cik unique") + **insider_identity** (surrogate `insider_identity_id` mapping many CIKs→one human); **insider_roles** (N-N identity↔issuer, role flags, observed_from/to); **transactions** (filing_id, **insider_identity_id**, issuer_id, instrument_id, **txn_line_no**, txn_date, txn_code, acquired_disposed, is_derivative, shares, **share_equivalents**, price, **price_source/price_quality**, `usd_value generated`, shares_owned_after, ownership_nature, **valid_time/system_time** bitemporal, `is_amendment/amends_accession/superseded_by`; dedup UNIQUE incl. `txn_line_no`; partial index `WHERE txn_code='P'`); **scores** (event-grain, score, **components jsonb**, model_version, **enrichment jsonb** = fundamentals as-reported-then); **memos** (score_id, **body jsonb**, llm_model, tokens); **alerts** (score_id, channel, status, **dedup_key unique**, sent_at); **outcomes** (every alert's forward return whether traded or not — defeats survivorship in your own track record, §21.7); **dq_checks** (per-batch data-quality telemetry, §14.0). Natural-key UNIQUEs give end-to-end idempotency; raw filings are the immutable source of truth so a parser fix can re-derive everything without re-hitting EDGAR.
 
 ### 16.4 Orchestration
 - **cron** (intraday) or **GitHub Actions** (`schedule:`, free, secrets/logs — best lean daily) → graduate to **Prefect** for retries/backfill/observability. Skip Airflow unless many interdependent DAGs.
@@ -558,17 +638,28 @@ CONTEXT
  • Net cash positive; no equity raise filed in last 12m; share count flat
  • Valuation: EV/EBITDA 6.1x vs 5-yr avg 11x
 
-SCORE: Txn 20 | Role 12 | Cluster 11 | Size 11 | Discretion 8 | Timing 11
-       Valuation 7 | Coverage 5 | Track 3 | Ownership 3 | Theme 2 | Selling 0
-KILL SWITCHES: none
+SIGNAL 87/100 | TRADEABILITY 71/100  (small float, ADV ok, not yet crowded)
+GATES PASSED: NPR +0.91 (net buying across ALL vehicles) | balance-sheet gate OK
+  (net cash, no raise) | forward-distress screen clear | not first-open-window-only
+  (buys are 3–8× this CEO's typical post-results housekeeping) | first CEO P-buy in 3yrs
+SECTOR PRIOR: industrials (neutral)   KILL SWITCHES: none
 
-AI MEMO: Founder + CFO + Chair + NED all buying personal cash into a post-miss 41%
-drawdown, no dilution on the horizon, net cash, cheap vs history. Textbook
-opportunistic cluster. Risks: single FY miss may signal demand softness; small-cap
-liquidity. Invalidated by: equity raise, further guidance cut, insider selling.
+DECISION: Conviction tier HALF | Suggested size 0.8% NAV (capped by ADV, not conviction)
+  | Catalyst: H1 trading update ~Sep; refi none due. | Time-stop: Mar-2027 if no progress.
+PEER COMP: EV/EBITDA 6.1x vs peers {ABC 9x, DEF 10x, GHI 8x} AND own 5yr avg 11x → cheap
+  vs peers AND history (not just history = not the value-trap pattern).
+EXPECTED VALUE: ~55% × +40% (re-rate) ; ~30% × ~0% ; ~15% × −35% (demand softness) ≈ +12%.
+P(loss) ≈ 0.30.
 
-FILINGS: [RNS PDMR links]   DISCLAIMER: research only, not advice.
+AI MEMO (bull): Founder+CFO+Chair+NED buying personal cash, 6-month 16(b) lock-in
+accepted, into a post-miss drawdown with net cash and no dilution path.
+BEAR CASE (equal weight): the FY miss is the start of structural demand decline, not a
+blip; cheap stays cheap; a future raise would reset the thesis. Invalidated by: any
+equity raise, further guidance cut, OR insiders turning sellers.
+
+FILINGS: [RNS PDMR links]   DISCLAIMER: research only, NOT financial advice.
 ```
+*Note how the alert earns its 87: it isn't "bought the dip" (which alone is the value-trap factor) — it passes the **net-buy-ratio gate**, the **balance-sheet/distress gate**, is **larger than the routine post-results window**, and is a **first-buy-in-3-years**. Strip any one of those and it should drop to watchlist.*
 
 ---
 
@@ -589,19 +680,107 @@ FILINGS: [RNS PDMR links]   DISCLAIMER: research only, not advice.
 
 ---
 
-## 20. Legal & Ethical Boundaries
+## 20. Legal & Ethical Boundaries (compliance-reviewed)
 
-- **Public information only.** Every source here is a mandated public disclosure or a licensed aggregator of one. **Never** use hacked, leaked, private, confidential, or otherwise material non-public information (MNPI) — trading on MNPI is illegal insider trading. This engine reads *what insiders are legally required to disclose after they trade* — it does not front-run undisclosed information.
-- **Respect access terms.** Honour robots.txt, rate limits (SEC ≤10/s + UA), and each site's ToS. RNS/LSEG and many vendors license their feeds — **commercial redistribution requires a licence**; personal research use is generally permitted but verify (incl. Trading 212 API Terms, CUSIP/SEDOL licensing — normalise on freely-usable ISIN/FIGI).
-- **Data protection.** EU/UK registers deliberately omit some personal data (e.g. DOB); don't re-identify or re-publish beyond what's disclosed; stay within GDPR if storing EU personal data.
-- **No manipulation / no advice.** This is a research-discovery tool. Don't use it to coordinate trading, amplify promotions, or manipulate thin stocks. Outputs are **research, not financial advice** — label every alert/memo accordingly.
-- **Honesty & provenance.** Treat vendor coverage/performance claims as marketing until verified; preserve confidence tags; surface contested findings rather than overstating the edge.
+§20's core instinct — trade only on mandated public disclosures, never MNPI — is correct, but the real risk for an *automated aggregation-and-alert engine* is the subtle ways it can drift across lines. Structured below.
+
+### 20.1 Why trading on public insider disclosures is legal
+Once a Form 4 / RNS PDMR / TR-1 is **filed and public**, the information is by definition **no longer non-public**. The insider's own trade was lawful (the Form 4 reports it); your *mimicking* trade uses only public data, you owe **no fiduciary duty** to the issuer, and you've **misappropriated nothing** — so neither the *classical* nor the *misappropriation* theory of insider dealing (*Chiarella*; *US v. O'Hagan*, 521 U.S. 642 (1997)) is engaged, and there's no "inside information" under UK/EU MAR Art. 8/14 because it's published. **Reg FD** (17 CFR 243) binds *issuers* (forcing broad dissemination), not you — it's part of *why* public filings are a clean source.
+
+### 20.2 Where you could accidentally cross into illegality (the MNPI line)
+1. **Acting on a tip** — any private tip from an insider/intermediary engages the tippee personal-benefit test (*Dirks*; *Salman v. US*, 580 U.S. 39 (2016)). The same fact is fine once filed, illegal as a tip beforehand.
+2. **Front-running pending filings** — obtaining a draft Form 4/RNS, filing-agent data, or broker order flow **before public dissemination** is MNPI. **Key every signal strictly off the public dissemination timestamp** (this is the §15.3 anti-look-ahead rule promoted to a *legal* rule).
+3. **Mosaic vs aggregation** — synthesising public + non-material pieces (mosaic) is legal; it stops being a defence the moment **any component is itself MNPI or obtained via breach** (e.g. scraping a *gated* non-public dataset).
+4. **Front-running clients** — if you ever manage others' money/discretionary subscribers, trading ahead of them is a separate fraud/fiduciary breach.
+
+### 20.3 Don't become a "group" yourself (novel trap for an alert service)
+If a service **coordinates** subscribers to buy the same (often thin) stock, regulators can argue a **"group" formed under SEC Rule 13d-5** ("agree to act together") → aggregate-5% Schedule 13D obligations + §16 exposure; UK/EU parallels are **"acting in concert"** (DTR 5 aggregation; Takeover Code concert parties) and **market manipulation** if it moves price. **Alerts must be one-directional information, never a call to coordinated action.**
+
+### 20.4 Scraping legality — two SEPARATE questions (the common error)
+- **(a) Computer-misuse (CFAA / UK CMA 1990):** scraping genuinely **public** pages (no login/paywall/CAPTCHA) is **not** a CFAA violation — *hiQ Labs v. LinkedIn* (9th Cir. 2022). **But the moment you bypass a credential, paywall, rate-limit block, or IP-ban, that protection is gone.** Never circumvent an access control.
+- **(b) Contract / trespass:** a site's ToS can still bind you. hiQ ultimately paid a **$500k judgment + permanent injunction for breach of contract and trespass to chattels** — *not* CFAA. So **don't create an account or click-accept ToS on a site you intend to scrape**; prefer official APIs/bulk endpoints; treat robots.txt as evidence of the operator's wishes.
+- **(c) EU/UK *sui generis* database right** (Dir 96/9/EC; *British Horseracing Board v. William Hill*): the maker of a database with "substantial investment" can prevent extraction of a substantial part **or repeated systematic extraction of insubstantial parts** — this can catch systematic scraping of BaFin/AMF/AFM/FCA registers **even where US CFAA reasoning wouldn't**. Prefer official bulk/API exports for EU sources.
+
+### 20.5 Identifier & data licensing
+- **Store and key on ISIN + FIGI only.** **Do NOT persist or output CUSIP (CUSIP Global Services/FactSet — actively enforced) or SEDOL (LSEG-licensed)** without a redistribution licence; treat any CUSIP arriving in a filing as transient/display-only.
+- **Vendor ToS:** **yfinance/Yahoo** = personal use only, **never** in a paid product (ToS bans commercial use/redistribution); scraped MarketScreener/Stockopedia/Simply Wall St = no redistribution; **Trading 212 API** = use only to check *your own* tradability, not as a data source to resell (read the API Terms PDF); **RNS/LSEG real-time = licensed**, commercial redistribution needs an LSEG licence (personal monitoring is the safe lane).
+
+### 20.6 GDPR / UK-GDPR (filings name real people)
+Document a **legitimate-interests assessment (Art. 6(1)(f))** as your lawful basis; rely on **Art. 14(5)(b)** (disproportionate effort) for transparency given bulk public-register sourcing; honour **erasure requests** subject to Art. 17(3) public-interest/freedom-of-expression carve-outs; **never infer/store special-category data (Art. 9)** or **re-identify deliberately-omitted fields** (e.g. DOB). If alerts are commercial and EU-facing, consider whether an **Art. 27 representative** is needed.
+
+### 20.7 If you ever PUBLISH or SELL alerts (a disclaimer is not enough)
+- **US — Investment Advisers Act 1940:** advising others about securities *for compensation in the business* makes you an "investment adviser" unless the **publisher's exemption** (*Lowe v. SEC*, 472 U.S. 181 (1985)) applies — which protects **bona fide, regular, impersonal** publications but is **lost if advice is personalised or self-interested** (holding the stock you tout = "scalping" fraud, *SEC v. Capital Gains Research Bureau*, 375 U.S. 180 (1963)).
+- **UK — FSMA 2000 s.21:** communicating an inducement to invest in the course of business is a **criminal offence** unless FCA-authorised, approved, or exempt (FPO art. 20 journalism exemption — **fails if you hold/are paid to promote the stock**). Personal recommendations to retail = the **regulated activity of advising** (RAO art. 53) → needs FCA authorisation.
+- **UK/EU — MAR Art. 20 + Reg (EU) 2016/958:** any "investment recommendation" (even a tweet/Telegram post) must disclose **author identity, methodology, horizon, and conflicts (your own holdings)**.
+- **Rule:** default to **general, impersonal, non-personalised** research; **disclose every position you hold**; take regulated-perimeter/adviser advice **before charging**.
+
+### 20.8 DO / DON'T (paste-ready)
+**DO** — trade only on already-public, disseminated info, keyed off the public timestamp · use official APIs/RSS/bulk exports · honour SEC ≤10 req/s + `Name email` UA · normalise on ISIN + FIGI · keep outputs general/impersonal, labelled "research, not advice", and disclose your holdings · document a GDPR LIA · take legal advice before charging.
+**DON'T** — bypass any login/paywall/CAPTCHA/rate-limit/IP-ban · create accounts or accept ToS on sites you then scrape · store/output CUSIP or SEDOL without a licence · systematically extract substantial parts of EU/UK registers/RNS · build a *commercial* product on yfinance/scraped-vendor/redistributed-T212-or-RNS data · act on tips/draft filings/order flow · coordinate or solicit subscribers into the same stock (13d-5 group / concert) · personalise recommendations to individuals.
+
+### 20.9 Honesty & provenance
+Treat vendor coverage/performance claims as marketing until verified; preserve confidence tags; surface contested findings rather than overstating the edge.
 
 ---
 
-## 21. Appendix — Contested Claims & Key Citations
+## 21. Risk Management & Portfolio Construction (the missing half of the system)
+*A signal detector is not an investment process. This section turns "score 87" into "buy 0.8% NAV, scale on confirmation, time-stop in March, bear case is the raise." Skipping it is the ruin path.*
 
-### 21.1 Carry these caveats into design
+### 21.1 Entry rules
+Enter only when: signal ≥80 **AND** all §9 kill-switches + the NPR gate clear **AND** tradable on T212 (§11) **AND** the §21.8 pre-trade checklist passes. **Mandatory cooling-off:** no entry on alert day — decide in a **weekly batch** (kills action-bias from daily Telegram alerts). **Scale in:** starter on signal, add on thesis/catalyst confirmation — never slam full size on a 45-day-stale 13F.
+
+### 21.2 Position sizing (this is the ruin control)
+A score is not a size. Even the strongest gross numbers (CMP ~10%/yr) become modest, high-variance edges net of cost (§1, §22). Therefore:
+- **Default: fixed-fraction 2–4% of NAV per name**, scaled by score band.
+- **Volatility-target** so a 60%-vol microcap and a 25%-vol mid-cap don't carry equal dollar risk: `size = (target_risk_per_trade × NAV) / (ATR × price)`; portfolio vol target ~10–15%/yr. Fractional shares (§11) make this *exactly* achievable at retail.
+- **Fractional Kelly only:** `f_used = clamp(0.25 × edge/odds, 0, f_max)`. Full Kelly on a ~55% hit-rate edge is suicidal; you can't estimate per-trade edge reliably, so default to fixed-fraction.
+- **Hard caps: 8% NAV at entry, 12% at market** (trim above).
+
+### 21.3 Portfolio caps
+| Limit | Cap | Why |
+|---|---|---|
+| Single name (entry / market) | 8% / 12% | blow-up containment |
+| Sector | 25–30% | clusters concentrate by sector |
+| Small-cap bucket | 50–60% | the edge *is* small-cap → structurally concentrated |
+| Illiquid (<$2–5m ADV) combined | 30% | edge lives where capacity is lowest |
+| Entry as % of 20-day ADV | ≤10–15% | exit feasibility |
+| Open positions | 15–25 | diversify idiosyncratic misjudgement |
+| FX (non-base ccy) | soft 40% | UK/EU names add GBP/EUR risk |
+| Leverage / margin | **none** | §9.10 logic applies to you too; keep 10–20% cash |
+- **Correlated-cluster netting (critical):** a sector-wide insider-buying wave fires 4–6 high-score alerts the same week — all small-cap, same sector, same factor. That's **one bet with 5× variance, not five bets.** Group simultaneous alerts by sector/factor and **share one sector budget across them** — a wave *reduces* per-name size. The §8 score measures *idiosyncratic* quality, not *marginal* portfolio contribution.
+
+### 21.4 Capacity — at retail, small size is the EDGE (reframe)
+The academic edge is strongest in small/illiquid names and **vanishes when trade size is capped to institutional capacity** — so a retail account **fishes where institutions structurally cannot.** With £20–50k and ≤10% positions (£2–5k) against names with even £0.5–2m ADV, an entry is **0.1–0.4% of daily volume → ~zero market impact.** Realistic ceiling before *you* move illiquid prices ≈ **£250k–£1m**, sector-dependent. Below that, the "net edge vanishes for funds" caveat applies far less to you. **Your binding cost is spread + FX + UK stamp duty (0.5%), not impact** — which argues for **fewer, longer holds**, not churn.
+
+### 21.5 Exit rules (separate the two reasons)
+A naive % price stop on a falling-knife strategy *guarantees you sell the bottom the insider was buying.* Keep two distinct exits:
+- **Thesis-invalidation (full exit, any price):** equity raise/dilution at a discount, insiders turning **sellers** in size, guidance cut beyond what's priced, covenant breach / going-concern, or the memo's `what_would_invalidate[]` events. (Wire the §9 dilution/toxic kill-switches to *live exit*, not just *don't-enter*.)
+- **Catastrophe price stop (risk only):** **wide** — −35% to −50% or ~3× ATR — sized so hitting it = your max per-trade loss budget; caps the fraud/blow-up tail without whipsawing you out of normal post-buy volatility.
+- **Time stop:** recycle if dead after **6–9 months** (edge decays — §15.4).
+- **Trim** back toward target when a name exceeds the 12% cap.
+
+### 21.6 Portfolio kill-switches (you have per-signal ones; you need portfolio ones)
+At **−20% NAV drawdown → halve new-position sizing; −30% → no new entries (hold/triage); −40% → mandatory full review + de-gross.** Pre-committed and mechanical, not discretionary in the moment.
+
+### 21.7 Honest base rates (so you survive psychologically)
+- **Per-trade hit rate ~52–58%, not 80%+.** A clustered opportunistic CFO buy into a drawdown still fails ~2 times in 5. "Score 80+" = high *signal quality*, **not** P(profit).
+- **"Insider bought and it kept falling" is the base case** — §2 *rewards* buying into declines, i.e. you systematically buy falling knives; a name can fall another 20–40% with the thesis intact (→ why exits are thesis-based, not price-based).
+- **Expect 35–55% portfolio drawdowns** in a market-stress event — *worse* than the index, because you're long the highest-beta, least-liquid, most-distressed segment. Pre-commit to holding through it (that's when cluster signals are strongest) — size so you're never a forced seller.
+- **Mandate the `outcomes` journal** (§16.3): log every alert's forward return whether traded or not, so your *real* hit rate is measured, not remembered (defeats self-survivorship).
+
+### 21.8 Pre-trade checklist (one screen)
+`[ ]` Signal ≥80, kill-switches + NPR gate clear (§8/§9) · `[ ]` No raise filed/likely (forward 30–90d, §9.13) · `[ ]` Not a value trap (rev/margin/share-count trend OK; distress screen clear) · `[ ]` Liquidity: entry ≤10–15% of 20d ADV; spread acceptable · `[ ]` Size within single-name + sector + small-cap + illiquid caps · `[ ]` Not double-counting a same-sector cluster as N independent bets · `[ ]` Wide catastrophe stop set; invalidation conditions written down · `[ ]` Portfolio DD governor not triggered · `[ ]` **Read the BEAR case, not just the thesis** · `[ ]` Logged to outcomes journal regardless of whether traded.
+
+### 21.9 Behavioural guardrails (you are the biggest risk)
+- **Confirmation bias from the AI memo** — a fluent bull thesis *feels* like independent confirmation but is the same data re-narrated. Force `risks`/`bear_case` to equal weight + a `probability_of_loss` (§16.1); consider a red-team pass.
+- **Anchoring on insider conviction** — "the CEO put in £412k" makes you reluctant to cut; insiders are frequently wrong on *timing*, anchored to their cost basis, with a 5-year horizon you don't have. Your stop overrides their conviction.
+- **Overtrading** — daily alerts create action-bias; the spread punishes churn → max N new positions/week, weekly batch, cooling-off.
+
+---
+
+## 22. Appendix — Contested Claims & Key Citations
+
+### 22.1 Carry these caveats into design
 - **Small-firm effect:** strong in Lakonishok-Lee & Seyhun (informativeness / equal-weighted) but **not significant in JMZ** (value-weighted performance-evaluation). Not universal — keep size weight modest.
 - **Raw trade size:** positively related to returns by *volume* (JMZ) but **% returns negatively correlated with raw $ size** (Cziraki-Gider) — normalise to holdings/salary, never reward absolute $.
 - **Net-of-cost outsider edge:** gross signal real (~6–10%/yr top specs) but **shrinks/vanishes** after costs and trade-size caps (Seyhun; Eckbo-Smith; FRL 2024) — capacity-limited, concentrates in small/illiquid names.
@@ -614,8 +793,9 @@ FILINGS: [RNS PDMR links]   DISCLAIMER: research only, not advice.
 - **Aggregate Seyhun 60% R²** and long-run anomaly robustness: contested out-of-sample — soft overlay only.
 - **Drake-Roulstone-Thornock** ≠ insider-trading source (it's info-demand/EDGAR-downloads) — use Piotroski-Roulstone / Brochet et al. / Choi et al. instead.
 - **Unverified vendor/regulator specifics:** institutional pricing (2iQ, Smart Insider, Verity, LSEG, SharePad), several API/export availabilities (CNMV/HKEX/SGX CSV, Norway/Finland consumer API, BaFin export), Trading 212 auth-header format & commercial-use terms, the `aff10b5One` XML tag spelling, SEC DERA dataset URL — confirm before depending on them.
+- **v3 expert flags:** **Form SHO** short-position regime is **delayed to 2028** (not a usable source for years); **Germany €50k threshold** likely exceeds the MAR Art.19(9) €20k ceiling unless raised by the Listing Act (Reg (EU) 2024/2809) — verify; **Archegos swap blind spot** — cash-settled swaps don't trip the 5% trigger, so absence of a 13D ≠ absence of accumulation; **scraping** is a *contract/trespass/database-right* risk more than a CFAA one (hiQ paid $500k on contract, not CFAA); **selling alerts** can pull you into adviser/FSMA-s.21/MAR-Art.20 territory and even **13d-5 "group"** status — see §20.
 
-### 21.2 Key academic citations (for backtest grounding)
+### 22.2 Key academic citations (for backtest grounding)
 Lakonishok & Lee (2001, RFS) · Jeng, Metrick & Zeckhauser (2003, REStat) · Cohen, Malloy & Pomorski (2012, JF "Decoding Inside Information") · Seyhun (1986 JFE; 1992 QJE; 1998 MIT Press) · Wang, Shin & Francis (2012, JFQA — CFO>CEO) · Wu (analyst-coverage causal) · Aboody & Lev (2000, JF — R&D) · Rozeff & Zaman (1998, JF) · Jenter (2005, JF) · Piotroski & Roulstone (2005, JAE) · Marin & Olivier (2008, JF) · Cziraki & Gider (2021, Review of Finance) · Brochet (2010, Accounting Review) · Eckbo & Smith (1998, JF) · Alldredge & Blank (2019, JFR) · Kang, Kim & Wang (2018, WP) · Anderson & Reeb (2003, JF) · Villalonga & Amit (2006, JFE) · Anderson, Reeb & Zhao (2012, JF) · Krishnamurthy, Spindt, Subramaniam & Woidtke (2005, JFI) · Floros, Nagarajan & Sivaramakrishnan (2019, RQFA) · Hertzel, Lemmon, Linck & Rees (2002, JF) · Brophy, Ouimet & Sialm (2009, RFS) · Ikenberry, Lakonishok & Vermaelen (1995, JFE) · Comment & Jarrell (1991, JF) · Allen & Phillips (2000, JF) · Chan, Kensinger, Keown & Martin (1997, JFE) · Kotter & Lel (2011, JFE) · Bortolotti, Fotak & Megginson (2015, RFS) · Dargenidou, Tonks & Tsoligkas (2018, JBFA) · Wang & Zheng (2022, JBFA) · Stice-Lawrence, Wong & Zhao (2025, JAR) · Jiang & Zaman (2010, JBF) · Fama (1998, JFE) · Mitchell & Stafford (2000, JB) · Barber & Lyon (1997) · Kothari & Warner (Econometrics of Event Studies).
 
 ---
