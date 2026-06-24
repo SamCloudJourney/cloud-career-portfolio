@@ -1,7 +1,19 @@
 # 💡 SAVED IDEA — "Data Liberation" / Compliance Archive for small UK firms leaving legacy software
 
-*Status: PROMISING — to revisit. Captured 24 June 2026.*
+*Status: ⚠️ BROAD VERSION KILLED (crowded) — narrow CE-angle unproven. Captured 24 June 2026.*
 *Emerged from the bottom-up gap hunt; pressure-tested live in conversation.*
+
+> ## ⚠️ VERDICT UPDATE (24 Jun 2026) — read before reviving this
+> **The broad idea was independently KILLED as crowded by two separate investigations** (a deep manual research pass *and* the 30-agent adversarial workflow):
+> - Big **desktop** products (IRIS, Digita) go **read-only, free, indefinitely** when you lapse — so "free my trapped data" isn't acute for them. ([AccountingWeb](https://www.accountingweb.co.uk/any-answers/leaving-iris-can-we-still-access-old-data))
+> - Migration *into* a new system is cheap/free (Smokeball free; [Insight Legal £750+VAT](https://www.insightlegal.co.uk/services/data-migration/); Osprey).
+> - The decommission/archive market is real but **enterprise-scoped** (OpenText, StorARCH, Archon) — they ignore small firms, but the category is mature.
+>
+> **The only sliver still possibly alive (unproven, small):**
+> 1. **Cyber-Essentials-forced decommission** — unsupported legacy software is the #1 cause of CE certification failure ([IASME](https://iasme.co.uk/cyber-blog/navigating-the-pitfalls-of-legacy-software/)); firms needing CE/cyber-insurance/contracts **can't** keep the zombie machine, must archive + switch off. *Forcing function.*
+> 2. **Cloud-locked products** (IRIS Elements) that genuinely **can't export to CSV** ([AccountingWeb](https://www.accountingweb.co.uk/any-answers/cant-export-data-out-of-iris-elements)).
+>
+> **Honest call:** don't revive the broad version. If anything, the narrow CE-forced niche would need its *own* verification first (and given that everything else got crowded, temper expectations). The original concept below is preserved for reference. The love for this idea was love of the *cleverness*, not genuine founder-market fit.
 
 ---
 

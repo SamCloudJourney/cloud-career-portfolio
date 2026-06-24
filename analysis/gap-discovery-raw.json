@@ -1,0 +1,2276 @@
+{
+  "summary": "Bottom-up hunt for unsolved problems / white-space a solo AI founder could win, with adversarial anti-crowding verification",
+  "agentCount": 61,
+  "logs": [
+    "parallel[15] failed: agent({schema}): StructuredOutput retry cap (5) exceeded — 5 failed calls with no valid output",
+    "Discovery complete: 91 candidate gaps from 29/30 finders",
+    "Clustered to 30 distinct candidate gaps"
+  ],
+  "result": {
+    "stats": {
+      "finders_ok": 29,
+      "raw_candidates": 91,
+      "clustered": 30,
+      "verified": 30,
+      "survivors": 3
+    },
+    "survivors": [
+      {
+        "title": "Alternative Provision (AP) due-diligence & ongoing-monitoring compliance for schools and MATs",
+        "problem": "When a school places a pupil with an external alternative provider, KCSIE 2025 and 'Arranging Alternative Provision' (2025) require the placing school to (a) run pre-placement due diligence proving the provider's safeguarding checks, DBS, policies, insurance and risk assessments are in order, and (b) review each placement AT LEAST half-termly with minuted checks — while RETAINING full safeguarding liability. Schools do this in ad-hoc Word packs and spreadsheets, re-collecting the same evidence each term, with no central register, no expiry alerts (DBS/insurance lapse silently) and no audit trail for Ofsted. One gap can trigger a 'safeguarding not effective' inadequate judgement.",
+        "who_suffers": "Designated Safeguarding Leads, inclusion/AP leads and MAT central compliance teams. ~24,000 schools, ~1,200 MATs. DfE estimates ~29,244 children in unregistered AP in 2025 (doubled since 2019). AP funded at ~£10k/place. Buyer = school or trust (DSL/business manager can purchase).",
+        "merged_evidence": "DfE 'Arranging Alternative Provision' (2025) mandates half-termly reviews and full retained safeguarding duty. 29,244 children in unregistered AP in 2025, doubled since 2019, commissioners retain safeguarding duties under KCSIE 2025/Working Together 2023 (peopleseducationsolutions.co.uk; vwv.co.uk). Schools told to build a manual 'due diligence pack' and keep minuted half-termly reviews. A product search for dedicated school-AP due-diligence software returned ONLY generic corporate/AML tools and zero dedicated product.",
+        "why_promising": "Falls between stools: MIS tracks pupils not providers; SCR tools cover internal staff; safeguarding tools (CPOMS, MyConcern) log incidents not provider due diligence. Recent and rapidly-tightening duty (KCSIE 2025/26 post-unregistered-AP scandals) so no incumbent has built for it. Buyer carries personal/legal liability, workaround is a spreadsheet, school-level budget avoids slow LA procurement, and a two-sided provider-profile network effect is available.",
+        "raw_fmf": 9,
+        "source_lenses": [
+          "UK education ops/compliance"
+        ],
+        "ai_unlock": "AI ingests a provider's uploaded safeguarding policy/insurance/DBS evidence, auto-extracts dates/named DSL/gaps, flags missing or expiring documents, auto-generates the KCSIE-compliant due-diligence pack and the minuted half-termly review report, and lets providers self-serve a reusable verified profile many schools can pull from.",
+        "monetization": "SaaS per school (~£300-800/yr) and per-MAT central licences (£2k-10k/yr for cross-trust oversight). Expansion: charge AP providers for a verified reusable assurance profile broadcast to commissioning schools (two-sided).",
+        "existing_solutions": [
+          {
+            "name": "LearnTrek (Huis Technologies Ltd)",
+            "url": "https://www.learntrek.co.uk/monitor-pupils-in-alternative-provision/",
+            "note": "CLOSEST competitor. AP-sector platform with per-provider 'compliance checks' area + doc storage + provider logins + QA logging. BUT pupil-progress/attendance-centric; no evidence of automatic DBS/insurance EXPIRY ALERTS or a provider-onboarding due-diligence portal. £850 (primary)/£1,600 (secondary) +VAT for mainstream, up to 30 pupils. Small UK company, no funding disclosed.",
+            "funded": "No (bootstrapped, small)"
+          },
+          {
+            "name": "Tes Provision Map",
+            "url": "https://www.tes.com/en-gb/for-schools/provision-map",
+            "note": "Trust-wide provision mapping + spend visibility across schools. Manages interventions/provisions and reporting, NOT provider safeguarding due diligence or expiry-tracked compliance evidence. Owned by Tes (well-funded incumbent).",
+            "funded": "Yes (Tes Global, PE-backed)"
+          },
+          {
+            "name": "Every (We Are Every) Compliance Manager",
+            "url": "https://www.weareevery.com/compliance_manager/",
+            "note": "Schools/MAT compliance software with automated reminders, audit trail, contract-renewal blocking. General estate/statutory compliance, NOT AP-provider due diligence — but could plausibly extend into it. Established UK player.",
+            "funded": "Yes (established, backed)"
+          },
+          {
+            "name": "Compliance Pod",
+            "url": "https://www.compliancepod.com/",
+            "note": "FM/compliance software for UK schools & MATs: real-time dashboards, audit trails, evidence retrieval for inspections. Facilities-compliance focused, not AP placements.",
+            "funded": "Unknown/bootstrapped"
+          },
+          {
+            "name": "Civica Education Operations",
+            "url": "https://www.civica.com/en-gb/sector-pages/education/software-multi-academy-trusts/school-operations-and-compliance-software/",
+            "note": "MAT operations + safeguarding + due-diligence document storage in the cloud. Broad estate/ops compliance, not dedicated AP-provider vetting with expiry alerts. Large incumbent could bolt this on.",
+            "funded": "Yes (Civica, PE-owned, large)"
+          },
+          {
+            "name": "Phew Audit System",
+            "url": "https://www.phew.org.uk/2025/02/the-future-of-safeguarding-audits-for-multi-academy-trusts/",
+            "note": "MAT safeguarding AUDIT platform (replaces spreadsheets). Internal safeguarding self-audit/action planning — explicitly NOT AP-provider DBS/insurance/policy register or placement reviews. Established UK safeguarding vendor.",
+            "funded": "Yes (established)"
+          },
+          {
+            "name": "Arbor (special/AP MIS)",
+            "url": "https://www.applytosupply.digitalmarketplace.service.gov.uk/g-cloud/services/920502179267383",
+            "note": "MIS used by 650+ special/AP schools; behaviour/progress/intervention workflows. It's the MIS FOR AP schools, not a tool for mainstream schools to vet external AP providers.",
+            "funded": "Yes (VC/PE-backed)"
+          },
+          {
+            "name": "The Key (Safeguarding / Leaders)",
+            "url": "https://schoolleaders.thekeysupport.com/pupils-and-parents/alternative-provision-ap-resource-hub/",
+            "note": "Provides AP due-diligence CHECKLISTS, templates and guidance (content/advisory), plus Safeguarding tracking. Sells the manual template, not a workflow product with expiry alerts — but is the obvious incumbent to productise this.",
+            "funded": "Yes (well-funded, large subscriber base)"
+          },
+          {
+            "name": "Local Authority AP Directories (e.g. East Sussex Czone, N Yorks, Dorset Nexus)",
+            "url": "https://czone.eastsussex.gov.uk/inclusion/alternative-provision/alternative-provision-directory-policy",
+            "note": "LA-run quality-assured AP provider directories with annual QA audits. Manual/PDF, per-LA, not a school-purchasable SaaS, and don't cover the school's own retained-liability evidence trail.",
+            "funded": "N/A (public sector)"
+          }
+        ],
+        "verdict": "lightly-served",
+        "confidence": 7,
+        "defensibility": "Weak-to-moderate. The compliance workflow itself is commoditisable (any incumbent — The Key, Every, Civica, LearnTrek — can bolt on a provider register + expiry alerts in a quarter). The only durable moat is a shared, network-effect provider directory: if one AP provider uploads its DBS/insurance/policy pack ONCE and every commissioning school pulls verified evidence from it, providers stop re-sending packs and schools get instant due diligence. That two-sided data asset (a national, continuously-verified AP provider register) is hard to replicate and gets stickier with scale. Without that, it's a feature, not a company.",
+        "fmf": 7,
+        "p_1m_arr": 4,
+        "speed_to_revenue": "Medium. Buildable solo in weeks (forms, document store, expiry-alert cron, audit log, PDF export — exactly the founder's strength). But UK schools are slow, budget-constrained, term-time-gated buyers with no urgency until an Ofsted visit looms; sales cycles are 1-3 terms. £1m ARR needs ~600-1,000 schools at ~£1-1.5k or ~150-250 MATs at central pricing — realistically 18-36 months of grinding bottom-up SEN/DSL sales with zero network. First paying pilot plausible within 3-6 months via cold outreach to DSLs/AP leads.",
+        "recommendation": "MAYBE — genuine, regulation-driven, under-productised UK gap (no dedicated AP-provider due-diligence+expiry-alert+audit-trail SaaS found), but it's a thin feature with low switching cost that incumbents can copy, and schools are slow low-ACV buyers; only PURSUE if built as a shared provider-register network, not a per-school form filler."
+      },
+      {
+        "title": "Grid connection queue & milestone compliance tracker for renewables/BESS developers",
+        "problem": "Under the 2025-26 GB connections reform (Gate 2, Queue Management Milestones, Progression Commitment Fees), a developer's grid connection offer is TERMINATED if they miss evidence-based milestones (planning consent, land rights, financial commitment) by the contractual date — losing their place in a multi-year queue plus a forfeited security fee. Each project has hundreds of interdependent tasks across NESO, the DNO, ICPs and internal teams; developers and advisors run this on bespoke Excel 'Queue Management Tool' spreadsheets that fail as portfolios scale.",
+        "who_suffers": "UK renewable/BESS developers and IPPs with pipeline portfolios (each holding one or more connection offers) plus the connections-advisory consultancies managing offers on their behalf. 700+ GW sits in the GB connection queue, so the population of tracked agreements is very large.",
+        "merged_evidence": "Roadnight Taylor (a connections consultancy) describes managing ICPs requiring 'constant management and tracking' across 'hundreds of tasks' using a 'Queue Management Tool' spreadsheet (roadnighttaylor.co.uk). Ofgem/DESNZ Connections Action Plan and Ofgem reform package confirm new Queue Management Milestones with termination for non-progression and a Progression Commitment Fee/security; Ofgem's Dec 2025 Connections End-to-End Review confirms the regime is live and evolving.",
+        "why_promising": "The milestone/penalty regime only became biting in 2025-26 so incumbents' tools predate it. NESO's portal is a submission system, not a developer-side compliance/deadline cockpit. Consultancies bill hours on manual tracking (no incentive to productise); generic PM software doesn't encode Gate 2 / milestone / PCF rules; the rules change often (deters big vendors, suits a fast solo builder). One lost connection (six/seven figures) dwarfs the subscription. Strong fit with the founder's infrastructure/energy interest.",
+        "raw_fmf": 8,
+        "source_lenses": [
+          "UK energy/renewables ops"
+        ],
+        "ai_unlock": "AI parses heterogeneous connection-offer letters and DNO/NESO milestone schedules (non-standard PDFs) into structured deadlines, auto-flags at-risk milestones, drafts the evidence packs DNOs require to prove progression, and keeps the rule-set current as Ofgem reforms land.",
+        "monetization": "SaaS per active connection agreement tracked (£50-150/offer/month) or per-portfolio seat to developers; higher-tier white-label to connections consultancies. Recurring and deadline-driven.",
+        "existing_solutions": [
+          {
+            "name": "GridUnity",
+            "url": "https://www.gridunity.com/",
+            "funded": "yes (well-funded, US VC + utility contracts)",
+            "note": "Operator/ISO-side interconnection queue platform (PG&E, SCE, Xcel, MISO, SPP). US-focused, sells to utilities not GB developers. Does not track a developer's Gate 2 Appendix Q milestone compliance. Adjacent, not competing."
+          },
+          {
+            "name": "Pearl Street Technologies (SUGAR / Interconnect)",
+            "url": "https://pearlstreettechnologies.com/",
+            "funded": "yes (US, DOE-backed)",
+            "note": "US interconnection study automation + a developer-side scenario/risk tool, but built for the US ISO process. No GB Queue Management Milestone / termination compliance product."
+          },
+          {
+            "name": "Nira Energy",
+            "url": "https://www.latitudemedia.com/news/how-nira-energy-is-using-software-to-unclog-the-interconnection-queue/",
+            "funded": "yes (US)",
+            "note": "US siting/interconnection cost optimisation for developers. Not GB milestone compliance."
+          },
+          {
+            "name": "Sitetracker",
+            "url": "https://www.sitetracker.com/industries/renewable-energy/",
+            "funded": "yes (large, Salesforce-ecosystem, enterprise)",
+            "note": "Generic renewable asset-lifecycle/deployment PM with milestone tracking, used globally. Enterprise demo-priced. Could be CONFIGURED for GB milestones but ships no native Gate 2/QM-termination logic; aimed at large IPPs/EPCs, overkill+expensive for mid/small developers. The most credible threat if it productises a GB module."
+          },
+          {
+            "name": "Volue / GE Vernova GridOS / Envelio",
+            "url": "https://www.volue.com/power-grid-software",
+            "funded": "yes (large incumbents)",
+            "note": "Operator-side grid/connection software (sold to DSOs/utilities). Not developer milestone compliance."
+          },
+          {
+            "name": "Yottar (with National Grid/NGED)",
+            "url": "https://www.enlit.world/library/national-grid-taps-startup-for-connections-intelligence-as-uk-tackles-speculative-requests",
+            "funded": "yes (UK startup, National Grid partnership)",
+            "note": "UK connections-intelligence startup, but partnered on the OPERATOR/DNO side (network models, connection opportunity insight). Not a developer-side QM milestone tracker. Shows the space is heating up though."
+          },
+          {
+            "name": "Keen AI / IConn (with SP Energy Networks)",
+            "url": "https://www.datacenterdynamics.com/en/news/sp-energy-networks-and-keen-ai-launch-digital-tool-to-cut-uk-grid-connection-wait-times/",
+            "funded": "yes (utility-backed)",
+            "note": "UK operator-side tool giving developers standardised connection-options info. Not portfolio milestone compliance."
+          },
+          {
+            "name": "Roadnight Taylor 'Queue Management Tool' / milestones calculator",
+            "url": "https://roadnighttaylor.co.uk/connectology/transmission-queue-management-milestones-calculator/",
+            "funded": "n/a (consultancy, free tool)",
+            "note": "Confirms the status quo: a FREE downloadable Excel milestone calculator used inside a consultancy. Not a SaaS. This is the incumbent 'tool' being replaced, and validates the spreadsheet pain."
+          },
+          {
+            "name": "Cora Systems / Quorum On Demand / Cleanview / UL",
+            "url": "https://corasystems.com/industry/renewable-energy-project-management-software",
+            "funded": "yes (established)",
+            "note": "Generic renewable dev-stage PM (permitting, land, interconnection milestones). None encode GB Gate 2 / QM termination regime natively."
+          },
+          {
+            "name": "Modo Energy / LCP Delta / Aurora",
+            "url": "https://modoenergy.com/",
+            "funded": "yes (Modo raised ~$50m Dec 2025)",
+            "note": "BESS market/revenue intelligence + pipeline databases. Track grid-connection status as a data field, but do not manage a developer's own per-project contractual milestone obligations/evidence/alerts. Could plausibly add a compliance module — watch-list threat."
+          }
+        ],
+        "verdict": "lightly-served",
+        "confidence": 7,
+        "defensibility": "Moat is regulatory-domain depth + workflow lock-in, not technology. The durable asset is a continuously-maintained encoding of the GB connections regime (Gate 2 criteria, the 8 User Progression Milestones / Appendix Q dates, QM termination triggers, Progression Commitment Fee, exception process, DNO/ICP variants) plus the per-project task graph and evidence templates that map to NESO's Connections Portal — kept current as the rules churn (Ofgem's End-to-End Review is explicitly 'live and evolving'). That regulatory-tracking burden is exactly what deters generic PM tools and what a solo founder CAN out-execute by being narrow and fast. Becomes a system-of-record once a portfolio's milestone data lives in it (switching cost). NOT defensible on code/AI alone — fully commoditisable there. Weakness: a consultancy (Roadnight Taylor, TNEI, Decerna) or a data incumbent (Modo) could bolt this on, and Sitetracker could productise a GB module. So defensibility is real but time-boxed: win the niche before they bother.",
+        "fmf": 7,
+        "p_1m_arr": 4,
+        "speed_to_revenue": "Slow-to-medium. The regime is live NOW (Gate 2 offers issued late 2025; milestone dates biting through 2026-2030), so urgency exists and budgets are real (a missed milestone = lost queue place worth £millions + forfeited security fee). But this is B2B sold into a clubby, relationship-driven UK developer/IPP/consultancy market with no public pricing and procurement friction — the founder's lack of network/credentials is the binding constraint. Realistic path: 6-12 months to first paying design-partner (likely a small/mid developer or one consultancy reselling it), revenue plausibly £30-150k ARR year 1. £1m ARR needs ~30-80 portfolio customers or a handful of consultancy/IPP enterprise deals — achievable in principle given 700+GW in the queue, but gated by trust and distribution, not product.",
+        "recommendation": "MAYBE — genuinely under-served developer-side niche with live regulatory pain and real money at stake, but a solo 19-yr-old with no energy network faces a trust/distribution wall and beatable-but-time-boxed defensibility; pursue only as a wedge via one consultancy design-partner, not as a cold B2B SaaS."
+      },
+      {
+        "title": "SEND tribunal appeal pack + working-document assembler for council SEND legal teams",
+        "problem": "When a parent appeals an EHCP decision, the local authority must, within statutory deadlines, produce a 'working document' (the EHCP with every requested amendment marked using formal tracked-change keys across Sections A-K) and a paginated, indexed, de-duplicated tribunal bundle. Miss the bundle deadline and the LA can be barred from proceedings. Appeals have risen ~8x in a decade to ~25,000/year and councils lose ~98% — yet must still assemble a full compliant pack per case. It's pure manual document labour (copy-paste between PDFs, Word tracked-changes, re-pagination) by scarce caseworkers under a 30-working-day response clock plus a 10-working-day bundle clock.",
+        "who_suffers": "SEND/EHC casework and legal teams in the ~150 English upper-tier/unitary LAs, each handling dozens-to-hundreds of live appeals. Buyer = Head of SEND / SEND Operations Manager / Principal Education Lawyer with delegated budgets.",
+        "merged_evidence": "Appeals rose 3,147 (2014/15) to 25,002 (2024/25) (CPS 'Suffocated by Tribunals'; BERA). LAs win ~1.7% of full hearings (Special Needs Jungle; BASW). LAs allocated £99.2m (2022/23) to appeal defence, now estimated >£200m/yr. LA-prepared working document (tracked keys) and bundle obligations + bar-from-proceedings risk documented at West Sussex SENDIASS and IPSEA (bundles bloating to 600+ pages with duplicates). Tribunals Statistics Quarterly Jul-Sep 2025 confirms record caseload.",
+        "why_promising": "Incumbent LA case-management systems (Liquidlogic, Mosaic) are systems-of-record that store the case but do NOT generate the marked-up working document or assemble/de-dupe/paginate the bundle. SEND-appeal software targets the PARENT side. Spend is huge (£200m+) and the bottleneck is exactly the document-reasoning LLMs now excel at. Risk: council sales cycles are long — mitigate via 2-3 reference authorities and per-bundle pricing.",
+        "raw_fmf": 9,
+        "source_lenses": [
+          "UK local councils & public bodies"
+        ],
+        "ai_unlock": "LLMs read the original EHCP + parent's requested amendments and produce a section-by-section working document with tracked keys; ingest mixed PDFs (EP/OT/CAMHS reports, school evidence) into an indexed, paginated, de-duplicated bundle with auto-index; flag third-party data for redaction; draft a first-cut response to appeal.",
+        "monetization": "Per-authority licence ~£12k-£40k/yr by appeal volume, justified against £200m+ aggregate spend and current interim-staff day rates. Optional per-bundle pricing for smaller districts. Natural expansion to the EHCP annual-review backlog (auto-amendment drafting against the 12-month/4-week/12-week statutory clocks).",
+        "existing_solutions": [
+          {
+            "name": "Agilisys EHCP Tool",
+            "url": "https://transform.agilisys.co.uk/agilisys-ehcp-tool/",
+            "funded": "Yes (large established UK GovTech / public-sector transformation firm)",
+            "note": "GenAI EHCP drafting/amendment tool ALREADY in 40+ LAs (~27% of 150). Co-designed with SEND teams, section-by-section plan editing, explicitly markets 'reducing tribunals'. Owns the exact buyer relationship; extending to appeal working-document generation is a small adjacency. Biggest competitive threat."
+          },
+          {
+            "name": "GovMetric Nexa EHCP Plus",
+            "url": "https://www.govmetric.com/govmetric-nexa",
+            "funded": "Yes (commercial GovTech, partnership with Outcomes Matter)",
+            "note": "AI EHCP drafting tool targeting the identical Head of SEND buyer. Same incumbency advantage to extend into tribunal working documents."
+          },
+          {
+            "name": "VITA (Innovate UK funded SEND AI)",
+            "url": "https://www.cypnow.co.uk/content/sponsored-content/ai-in-ehcp-drafting-are-general-purpose-tools-enough",
+            "funded": "Yes (Innovate UK Smart grant, council-co-developed)",
+            "note": "Bespoke GenAI EHCP tool with cross-sector governance board. Another funded player already inside LAs on the SEND drafting workflow."
+          },
+          {
+            "name": "Liquidlogic Education / System C",
+            "url": "https://www.systemc.com/local-government/liquidlogic-education-case-management/",
+            "funded": "Yes (System C, major LA software vendor)",
+            "note": "Dominant SEND/EHCP case-management system across most English LAs. Has an 'Appeals Management' workflow (tracking, not document assembly). Does NOT generate working docs or bundles today, but owns the system-of-record and integration position."
+          },
+          {
+            "name": "Bundledocs",
+            "url": "https://www.bundledocs.com/court-bundle-software",
+            "funded": "Yes (established, used by govt bodies)",
+            "note": "Auto pagination/indexing/bookmarks/hyperlinks/dedup for court & tribunal bundles. Commoditises the entire bundle-assembly half of this idea. On the market for LA in-house legal teams."
+          },
+          {
+            "name": "CaseLines / Thomson Reuters Case Center",
+            "url": "https://www.localgovernmentlawyer.co.uk/39437-caselines-innovations-available-on-g-cloud-9",
+            "funded": "Yes (Thomson Reuters)",
+            "note": "On G-Cloud; ALREADY adopted by LA legal teams (Orbis Public Law shared service across Brighton & Hove, East Sussex, Surrey, West Sussex). Auto-pagination/master-bundle. Directly serves the bundle obligation."
+          },
+          {
+            "name": "BundleCreator / TrialView / Casedo / HyperLaw / Osprey",
+            "url": "https://bundlecreator.co/",
+            "funded": "Mixed (several VC/established legaltech)",
+            "note": "Crowded field of UK court/tribunal bundling tools, all on Practice-Direction-compliant pagination/indexing. The bundle half is a saturated commodity."
+          }
+        ],
+        "verdict": "lightly-served",
+        "confidence": 7,
+        "defensibility": "Thin and eroding. The SEND-specific working-document generator (A-K tracked-change keys) is the one genuine white space — no product does it today. But (1) the document logic is exactly what GenAI commoditises, (2) the bundle half is already a saturated commodity (Bundledocs/CaseLines/Case Center, several on G-Cloud and in LA legal teams), and (3) the buyer is mid-adoption of funded GenAI EHCP incumbents (Agilisys at 40+ LAs, GovMetric, VITA) for whom 'also produce the appeal working document' is an obvious roadmap bolt-on with an owned customer relationship, the plan data, and framework procurement standing. The only candidate moat would be a SEND-tribunal-specific corpus + deep workflow lock-in (drafting + working-doc + bundle in one compliant pipeline), but a solo founder with no LA references cannot build that faster than incumbents already inside the door, and special-category data + public-sector procurement (DPIA, ICO/LGA AI guidance, security) raise the entry bar sharply.",
+        "fmf": 4,
+        "p_1m_arr": 3,
+        "speed_to_revenue": "Slow. Buyer = Head of SEND / Principal Education Lawyer in ~150 LAs — long public-sector cycles, DPIAs on special-category children's data, ICO/LGA AI procurement scrutiny, framework/G-Cloud listing, and security reviews. With zero references, network, or credentials (the founder's hard constraints), first paid pilot realistically 9-15 months out; competitive against funded GovTech already embedded. £1m ARR needs ~25-50 LAs at £20-40k each — reachable arithmetically but requires winning competitive procurements cold.",
+        "recommendation": "MAYBE-leaning-KILL — Real, verified, painful LA-buyer problem (LA prepares working doc + bundle, genuine bar-from-proceedings risk, 25k appeals/yr), and the A-K working-document generator is true white space; but it is lightly-served-and-closing, not open: bundle half is a commodity, and funded GenAI EHCP incumbents (Agilisys 40+ LAs, GovMetric, VITA) own the exact buyer and can bolt this on. Poor go-to-market fit for a solo founder with no network against slow, reference-driven public-sector procurement. Pursue only as a narrow wedge sold INTO/alongside an incumbent or a shared LA legal service, not as a standalone cold-sale play."
+      }
+    ],
+    "killed": [
+      {
+        "title": "Data-liberation + read-only compliant archive for UK firms leaving legacy vertical software",
+        "verdict": "crowded",
+        "why": "KILL — real pain, but UK buyers are already served free by the receiving migration vendor and by incumbents' own read-only modes, a mature enterprise archive category exists, and the extraction-fee 'ransom' premise is being legislated away (EU Data Act 2027 / UK DUAA 2025).",
+        "top_competitors": [
+          {
+            "name": "Incumbent vendors' own read-only mode (IRIS, etc.)",
+            "url": "https://www.accountingweb.co.uk/any-answers/accessing-historical-data-when-leaving-iris",
+            "note": "IRIS gives departing customers ~1 year of free read-only access from which data can be extracted. Built-in alternative that blunts the core wedge; the 'ransom' is mainly an issue past the free window or for raw dumps."
+          },
+          {
+            "name": "Insight Legal Software (Proclaim/LEAP migration)",
+            "url": "https://www.insightlegal.co.uk/services/data-migration/eclipse-proclaim/",
+            "note": "UK. Migrates full historical matter + accounting data from Proclaim/LEAP into a new system in ~3 days. Receiving vendor does history migration as part of the switch, removing need for separate archive. Not funded-startup; established."
+          },
+          {
+            "name": "Osprey Approach / Hoowla / Clio (legal migration)",
+            "url": "https://ospreyapproach.com/services/data-migration/",
+            "note": "UK SME-focused legal PMS vendors that migrate historic matter/financial data on switch. The new vendor wants the deal so does the history migration cheaply/free."
+          }
+        ]
+      },
+      {
+        "title": "AML source-of-funds assessment & rationale writer for small UK law firms (SRA file-note generator)",
+        "verdict": "crowded",
+        "why": "KILL — the precise problem (collect-but-don't-assess) is genuine and well-evidenced, but it is a thin feature wedge inside a workflow owned by 2-3 well-funded UK-native incumbents (Thirdfort, Legl, Armalytix) who hold the data and distribution and are actively shipping AI into the assessment layer right now (Thirdfort's May 2026 rebuild). Xapien already proves LLM narrative generation is commoditised. A solo founder with no network can't out-distribute them or out-data them, and the rationale-writer is one sprint from being free inside the incumbent.",
+        "top_competitors": [
+          {
+            "name": "Thirdfort",
+            "url": "https://www.thirdfort.com/product/source-of-funds/",
+            "funded": "yes — ~$26M raised (Breega, Element Ventures, 13books)",
+            "note": "UK-native, the category leader for solicitor SoF. May 2026 rebuilt platform adds AI that 'scans, extracts and interprets data used in source of funds analyses', red-flag summaries, key findings, portfolio-wide risk visibility. Deliberately stops at 'human in the loop' rather than auto-writing the file note — but is clearly moving into the assessment layer. Owns the Open Banking + KYC data and the firm relationships."
+          },
+          {
+            "name": "Legl",
+            "url": "https://legl.com/kyc-aml",
+            "funded": "yes — ~£21.6M raised (Octopus Ventures, First Round, Samaipata); 400+ UK firms incl. 40 of Top 200",
+            "note": "Modular UK compliance SaaS bundling KYC/KYB/AML/SoF/screening with audit trails. Owns distribution into mid-market firms that a solo founder lacks."
+          },
+          {
+            "name": "Armalytix",
+            "url": "https://armalytix.com/law/",
+            "funded": "yes — ~$5M raised (ex-HSBC/UBS/GS angels)",
+            "note": "Open-Banking SoF/SoW specialist for law firms. 'Risk Insights' auto-flags items outside firm risk parameters; questionnaires + fact-finds analysed and presented. Stops short of writing the narrative, but owns the data feed."
+          }
+        ]
+      },
+      {
+        "title": "Planning-constraint due-diligence engine for conveyancers (built on the new national Planning Data Platform API + digitised Local Land Charges)",
+        "verdict": "crowded",
+        "why": "KILL - the exact product (AI flagging planning/enforcement/constraint risk from search data) is already shipped by funded incumbents (Search Acumen REI, Orbital, Landmark, Groundsure) who own the data and the distribution; a solo founder on the incomplete free API has no wedge and no moat.",
+        "top_competitors": [
+          {
+            "name": "Search Acumen (REI / ForeSite / Data Snapshot)",
+            "url": "https://www.search-acumen.co.uk/news/search-acumen-launches-rei-the-uks-first-ai-model-trained-to-handle-local-authority-real-estate-search-data/",
+            "funded": "yes (established property-data tech provider, part of Dye & Durham group)",
+            "note": "DIRECT competitor. REI is explicitly 'the UK's first AI model trained to handle local authority real estate search data' - it reads CON29 searches, extracts/standardises/flags planning, enforcement and constraint items, free when ordering searches. ForeSite/Data Snapshot combines 60+ datasets (planning, conservation areas, Article 4-type layers, highways) for early risk flagging. This IS the proposed product."
+          },
+          {
+            "name": "Orbital Witness",
+            "url": "https://www.orbital.tech/residential-uk",
+            "funded": "yes - £11.5m+ raised (incl £7.5m Series A)",
+            "note": "AI property due-diligence. 2,500+ lawyers (Mishcon, Clifford Chance, M&S). Reviews title, leases, deeds AND searches with risk-level flagging; expanding commercial->residential conveyancing. Directly overlaps automated search/constraint risk review."
+          },
+          {
+            "name": "Landmark Information Group",
+            "url": "https://www.geodesys.com/article/landmark-planning-update",
+            "funded": "yes (large incumbent, Daltrey/Wilmington-scale)",
+            "note": "National planning reports covering applications, LA policies and constraints; data feeds InfoTrack/Geodesys conveyancing reports."
+          }
+        ]
+      },
+      {
+        "title": "UKVI sponsor-licence ongoing-duties & audit-readiness engine for care providers and hospitality SMEs",
+        "verdict": "crowded",
+        "why": "KILL — the candidate's core premise (incumbents scope OUT reporting/Appendix D/audit-prep) is factually false; 8+ live UK-specific products (SponsorPro, UKVICAS at 2,000+ customers, HireComply, ComplianceGuard, Work Permit Cloud, BlazeHR, Roothr, plus Dentons) already own the exact 'highest-stakes layer', several already shipping for the April 2026 HMRC/CQC changes treated as the wedge.",
+        "top_competitors": [
+          {
+            "name": "SponsorPro",
+            "url": "https://sponsorpro.co.uk/",
+            "note": "Live, full-scope. Explicitly covers the candidate's supposed gap: 'Reporting Duties Wizard' (absences, role/salary changes, UKVI notifications with deadline tracking), 'Record Keeping Wizard' = Appendix D equivalent, visa expiry alerts (90/60/30/7d), real-time Audit Readiness Score, one-click audit pack across all 5 Home Office areas. £39-249/mo + enterprise. Directly refutes the thesis.",
+            "funded": "Bootstrapped/unknown"
+          },
+          {
+            "name": "UKVICAS",
+            "url": "https://ukvicas.com/",
+            "note": "Live SaaS, claims 2,000+ businesses and 100+ Home Office visits passed penalty-free. Document expiry alerts, one-click compliance report, UK support/training. Founder-led. Scale here alone signals a real, served market.",
+            "funded": "Bootstrapped, founder Nagappan Natarajan"
+          },
+          {
+            "name": "HireComply",
+            "url": "https://hirecomply.co.uk/",
+            "note": "Live. RTW, visa expiry (90/60/30d), CoS allocation management, Appendix D-aligned record-keeping, 'Instant Audit Reports'. Free trial + demo. Direct competitor.",
+            "funded": "Unknown"
+          }
+        ]
+      },
+      {
+        "title": "Ongoing-advice 'fee-for-no-service' evidencing & look-back redress engine for small IFA firms",
+        "verdict": "crowded",
+        "why": "KILL — Real problem, but already directly served by Recordsure, Aveni, AdvisoryAI and the incumbent back-office systems; the FCA closed its review with no mandated sector-wide redress program (83% delivered, <2% no-effort), deflating the urgency, and a solo no-network founder has no moat or trust to win a compliance-critical, relationship-led buyer.",
+        "top_competitors": [
+          {
+            "name": "Recordsure (ReviewAI / Ongoing Advice Reviews)",
+            "url": "https://recordsure.com/case-review-ai/ongoing-advice-reviews/",
+            "note": "Direct, dominant competitor. Dedicated 'Ongoing Advice Reviews' product that reconstructs per-client evidence trails, flags missing review periods within practice-management systems, checks evidentiary docs. Claims to have checked 'over one million years of ongoing advice' and 90M documents / £5bn in services; FCA & ASIC validated. Owned by Behavox — well funded. This IS the proposed product, already at scale.",
+            "funded": "yes"
+          },
+          {
+            "name": "Aveni",
+            "url": "https://aveni.ai/blog/compliance-or-con-ongoing-financial-advice-fees/",
+            "note": "Edinburgh VC-backed (raised multiple rounds). Explicitly markets ongoing-advice fee-for-service evidencing, automated QA at 100% coverage, and pulling together evidence (meetings/reports/queries vs fee charged). Blog literally targets 'fee for no service'.",
+            "funded": "yes"
+          },
+          {
+            "name": "AdvisoryAI",
+            "url": "https://advisoryai.com/",
+            "note": "Used by 2,000+ advisers across 300+ UK firms. Time-stamped 'evidence vault' for FCA inspection, annual-review report generation, compliance checker mapping to COBS 9.4.7R / PROD / Consumer Duty, watches client books and flags review needs. Funded.",
+            "funded": "yes"
+          }
+        ]
+      },
+      {
+        "title": "Priced 'schedule of works' generator + estimate-leakage auditor for UK loss adjusters (the missing UK Xactimate)",
+        "verdict": "crowded",
+        "why": "KILL — The central premise ('UK has no equivalent standard tool') is factually wrong: Cotality Claims Estimate (UK), Symbility Mobile Claims (UK), Verisk Xactimate (UK) and in4mo all produce priced UK schedules of works with UK pricing databases, and the leakage-audit angle is already covered by Cotality Claims Validate. The market is well-served by funded incumbents that own the one asset (UK pricing data + insurer integrations) a solo founder cannot replicate.",
+        "top_competitors": [
+          {
+            "name": "Cotality Claims Estimate (UK) — formerly CoreLogic/Symbility",
+            "url": "https://www.cotality.com/uk/products/claims-estimate",
+            "note": "The actual UK incumbent. Dedicated UK product page; ships an 'independently researched claims construction pricing database' with UK material/labour/regional cost trends for domestic AND commercial building claims; guided Q&A workflows to produce consistent priced estimates; explicitly markets 'reduce loss adjusting expenses and avoid claims leakage'. This single product directly does what the candidate claims has no UK equivalent.",
+            "funded": "Yes — Cotality (ex-CoreLogic), multi-billion-dollar firm owned by Stone Point/Insight Partners; global scale."
+          },
+          {
+            "name": "Symbility Mobile Claims (UK)",
+            "url": "https://play.google.com/store/apps/details?id=com.symbility.mobileclaims.uk",
+            "note": "Dedicated UK field app (now Cotality). Industry sources state 'in the UK, loss adjusters have been using Symbility as a scoping tool to produce schedules of work and settle claims' — the exact per-claim priced schedule-of-works deliverable. Generates floor/roof/elevation plans with live UK cost components.",
+            "funded": "Yes — part of Cotality."
+          },
+          {
+            "name": "Verisk Xactimate (UK)",
+            "url": "https://www.verisk.com/en-gb/products/xactimate/",
+            "note": "Xactimate IS sold into the UK (Verisk en-gb product page; UK Capterra listing). The candidate's framing of Xactimate as a US-only tool with 'no UK counterpart' is wrong — Verisk markets it in the UK directly.",
+            "funded": "Yes — Verisk, ~$40bn+ listed company."
+          }
+        ]
+      },
+      {
+        "title": "Pharmacy First threshold forecaster + NHS claims reconciliation for community pharmacies",
+        "verdict": "crowded",
+        "why": "KILL — the pain is real but the data and the buyer relationship are both owned by funded NHS-assured incumbents (PharmOutcomes/Optum, Cegedim, Sonar); the forecast is a thin feature they can absorb, and a networkless solo founder can't get the integration or the trust to win.",
+        "top_competitors": [
+          {
+            "name": "PharmOutcomes (Pinnacle / EMIS Health / Optum-UnitedHealth)",
+            "url": "https://pharmoutcomes.org",
+            "note": "The dominant NHS-assured consultation recording system. Records Pharmacy First consultations, auto-submits claims to NHSBSA MYS via API, and produces service reports showing claim status that are the canonical reconciliation reference. Already shows real-time activity. Owned by Optum/UnitedHealth via EMIS — directly occupies both the count-tracking and claims-reconciliation halves of the gap.",
+            "funded": "Yes — owned by Optum/UnitedHealth (multi-billion). Not independently fundraising; corporate-backed."
+          },
+          {
+            "name": "Cegedim Healthcare / Pharmacy Manager (CRx Services)",
+            "url": "https://cegedimrx.co.uk/pharmacy-services-solutions",
+            "note": "Second NHS-assured route. Integrated PMR + Pharmacy First claim submission to MYS. Reconciliation discrepancies are explicitly routed back to 'your system supplier' (i.e. Cegedim/PharmOutcomes) — they own the reconciliation relationship.",
+            "funded": "Yes — Cegedim SA, listed French health-IT group."
+          },
+          {
+            "name": "Sonar Informatics (Sonar Health)",
+            "url": "https://www.sonarhealth.org",
+            "note": "Launched a dedicated Pharmacy First module in 2025 with booking, clinical entry and integrated NHS MYS payments. NHS-accredited national IT provider — best-positioned to add a threshold forecast widget on top of data it already holds.",
+            "funded": "Established commercial vendor; NHS-accredited."
+          }
+        ]
+      },
+      {
+        "title": "NHS dental UDA delivery forecaster + FP17/Compass clawback-reconciliation (PMS-agnostic)",
+        "verdict": "crowded",
+        "why": "KILL — the exact 'Compass import + FP17 reconciliation + clawback forecaster' is already a free product (UDA Pulse) and a funded SaaS (DentPulse), with PMS incumbents owning the data; a solo founder with no dental network cannot win or reach £1m ARR here.",
+        "top_competitors": [
+          {
+            "name": "UDA Pulse",
+            "url": "https://udapulse.co.uk/",
+            "note": "FREE. The near-exact product described in this gap. Imports NHSBSA Compass reports (DCS127, DCS129, SD86c, Monthly Superannuation), matches logged entries against NHSBSA claims by date and UDA value, flags discrepancies (missing/late FP17s, incorrect band/contract allocation), tracks FP17 2-month deadlines, surfaces daily-UDAs-required clawback warning from Q1, PMS-agnostic, published a 2026/27 contract reform guide. Solo founder (Dr Kartik Datla), local-storage, looks lightly resourced — but it is free, which destroys willingness-to-pay for a paid clone.",
+            "funded": "No (solo/bootstrapped, free product)"
+          },
+          {
+            "name": "DentPulse",
+            "url": "https://www.dentpulse.com/",
+            "note": "Funded SaaS rebuilt May 2025, built exclusively for UK dental practices. Tracks UDA delivery vs target, NHS inflows vs deductions, and clawback projections inside a 13-week cash-flow forecast; flags risk when delivery drops below ~94% by January; performer-level analysis (APEX index for UDA vs private in mixed contracts); multi-location group support; integrates with Xero/QuickBooks/practice software. Tested with 67+ clinics since 2019. Directly owns the forecasting + clawback-prediction + cashflow narrative.",
+            "funded": "Yes (commercial SaaS, client base, rebuilt as funded product 2025)"
+          },
+          {
+            "name": "EXACT / Software of Excellence (Henry Schein One)",
+            "url": "https://help.softwareofexcellence.com/hc/en-gb/articles/4991378416788-NHS-UDA-Manager",
+            "note": "Market-leading PMS with built-in 'Predictive UDA Manager' compiling UDA KPIs in one graph, plus UDA health check and in-progress reports. Owns the data at source. Caveats users to confirm against Compass, leaving a reconciliation seam — but incumbent distribution into thousands of practices.",
+            "funded": "Yes (Henry Schein One)"
+          }
+        ]
+      },
+      {
+        "title": "EPR packaging data + RAM recyclability + nation-of-sale engine for small obligated producers",
+        "verdict": "crowded",
+        "why": "KILL — the exact product (automated UK RAM + nation-of-sale + Shopify/Amazon ingestion for SME producers) already ships from multiple startups (Packgine, Remedy EPR, PackTotal) AND every major compliance scheme offers a RAM/data managed service to the same buyer; it's a public-methodology rules engine with no moat in a low-trust-tolerance, distribution-gated market.",
+        "top_competitors": [
+          {
+            "name": "Packgine",
+            "url": "https://packgine.ai/epr",
+            "note": "Startup doing EXACTLY the candidate gap: automated UK RAM assessment workflows, regulator-ready methodology docs, Shopify/Amazon/ERP integrations for automated data pull, compliant report generation. Direct head-on competitor.",
+            "funded": "unknown (early startup)"
+          },
+          {
+            "name": "Remedy EPR",
+            "url": "https://www.remedy-epr.com/",
+            "note": "Markets itself as 'UK's only fully automated EPR assessment software'. Does 2026 RAM modulated-fee calc, Shopify/WordPress integration, supplier data extraction, free fee calculator + obligation checker. Targets small e-commerce to large distributors. Demo-led.",
+            "funded": "UK startup, funding undisclosed"
+          },
+          {
+            "name": "PackTotal",
+            "url": "https://www.packtotal.co.uk/extended-producer-responsibility/",
+            "note": "UK packaging management software explicitly supporting RAM (component tracking + assessment docs since Jan 2025), nation-of-sale/customer-size/brand-owner fields, automated DEFRA submission. Covers exactly the SME long tail.",
+            "funded": "established UK SaaS, undisclosed"
+          }
+        ]
+      },
+      {
+        "title": "Retention recovery register + smash-and-grab payment pack for UK construction subcontractors",
+        "verdict": "crowded",
+        "why": "KILL — the exact product (statutory pay-less/smash-and-grab deadline tracking + retention register) already ships from multiple live UK players (Site Samurai, Payapps/Autodesk, Textura), the subbie niche is already targeted (LazyQS), and the Commercial Payments Bill (introduced May 2026) will ban retentions on a 2-year transition, legislating away half the value prop on a new entrant's exact ramp timeline.",
+        "top_competitors": [
+          {
+            "name": "Site Samurai",
+            "url": "https://www.sitesamurai.co.uk",
+            "note": "Live UK construction management product. Comparison content explicitly states it generates payment + pay-less notices with statutory s.111 deadline tracking and audit trail (i.e. smash-and-grab protection) plus retention calculations. From £99/mo, unlimited users, 14-day trial. This is essentially the candidate product already shipping.",
+            "funded": "bootstrapped/unknown, but live and selling"
+          },
+          {
+            "name": "Payapps",
+            "url": "https://www.payapps.com/uk/",
+            "note": "Market-leading UK applications-for-payment software with retention management, Construction Act compliance, and automatic key-date reminders so you never miss a deadline. Has dedicated subcontractor pricing plans (first app free each month). Acquired by Autodesk in 2024 — very well resourced.",
+            "funded": "yes — acquired by Autodesk"
+          },
+          {
+            "name": "LazyQS",
+            "url": "https://www.lazyqs.co.uk/contract-review",
+            "note": "AI contract-review tool built specifically FOR UK subcontractors. Flags pay-when-paid, assessment-period manipulation, missing payment-notice obligations, and 'retention clauses with no clear release obligations'. Directly targets the same buyer and the same pains.",
+            "funded": "unknown startup, live"
+          }
+        ]
+      },
+      {
+        "title": "Construction takeoff & priced estimate generation for small UK builders/subcontractors",
+        "verdict": "crowded",
+        "why": "KILL — the exact problem (AI takeoff + priced estimate from PDFs/photos for UK SME and solo trades) is already served end-to-end by multiple funded and UK-native incumbents (Kreo, Buildxact, Togal, CountBricks, QuoteIQ), several at solo-trade price points; no moat for a solo founder.",
+        "top_competitors": [
+          {
+            "name": "Kreo Software",
+            "url": "https://www.kreo.net/",
+            "funded": "Bootstrapped, ~$2.4M ARR, 22 staff",
+            "note": "UK-based AI takeoff+estimating. Caddie AI agent auto-reads PDFs, measures, prices. From £25/user/mo. Directly targets contractors/QS incl. smaller firms. This is the exact product the gap describes, already mature in the UK."
+          },
+          {
+            "name": "Togal.AI",
+            "url": "https://www.togal.ai/",
+            "funded": "Raised $5M (Florida Funders, Meta/Goldman execs)",
+            "note": "Computer-vision AI takeoff, up to 98% accuracy, built by estimators. Serves UK. Well-funded direct competitor."
+          },
+          {
+            "name": "CountBricks",
+            "url": "https://www.countbricks.com/",
+            "funded": "Yes (VC-backed)",
+            "note": "AI takeoff from drawings OR voice/text descriptions, auto-generates priced proposals with local pricing. Explicitly markets to solo/small contractors saving 8+ hrs/week — the exact solo-trade use case."
+          }
+        ]
+      },
+      {
+        "title": "REGO/ROC certificate lifecycle & deadline tracker + PPA payment reconciliation for independent generators",
+        "verdict": "crowded",
+        "why": "KILL — the certificate-admin pain is given away free by offtakers (who act as the Ofgem agent) and partly auto-handled by Ofgem's register, while PPA settlement reconciliation is already a crowded funded category (Verse, Enegen/PPAFlow, Flexidao, LevelTen, MRI); a solo founder with no network has no defensible wedge into a tiny segment and no realistic path to £1m ARR.",
+        "top_competitors": [
+          {
+            "name": "Drax (Renewable Purchasing)",
+            "url": "https://energy.drax.com/sell-power/power-purchase-agreements/",
+            "funded": "Incumbent (FTSE-listed)",
+            "note": "PPA partner to 2,300+ UK independent generators; acts as Ofgem agent, handles REGO/ROC registration, matching and transfer for generators as a FREE bundled part of the PPA. Partnered with Granular Energy for hourly REGO tracking. This is the core 'deadline minefield' pain — already absorbed by the offtaker."
+          },
+          {
+            "name": "SmartestEnergy",
+            "url": "https://www.smartestenergy.com/en_GB/selling-energy/",
+            "funded": "Incumbent (Marubeni-owned)",
+            "note": "Explicitly states it 'manages all settlement and contractual complexity for generators'. Directly neutralises both the certificate-admin and settlement pain for its generator base, free as part of the PPA."
+          },
+          {
+            "name": "Good Energy",
+            "url": "https://www.goodenergy.co.uk/business/power-purchase-agreements/",
+            "funded": "Incumbent (listed)",
+            "note": "PPAs for 3,300+ generators of all sizes incl. small/medium; handles certificate admin and provides settlement statements as part of offtake."
+          }
+        ]
+      },
+      {
+        "title": "Solar/wind asset compliance & warranty-claim evidence log for small UK O&M portfolios",
+        "verdict": "crowded",
+        "why": "KILL — the exact feature set (warranty-evidence log, PR/availability, LD compliance) is already shipped by funded incumbents and cheap mid-market CMMS, and the UK small-owner long-tail outsources asset management rather than buying software; no wedge or moat for a networkless solo founder.",
+        "top_competitors": [
+          {
+            "name": "Power Factors (Greenbyte + 3megawatt + Drive)",
+            "url": "https://www.powerfactors.com",
+            "note": "Well-funded global APM/EAM consolidator. 3megawatt BluePoint does contract & compliance management, asset register, event/task management, investor reporting, LD/availability tracking. Directly covers the warranty-evidence + PR/availability + compliance-log gap. Funded (multiple acquisitions, PE-backed).",
+            "funded": "yes"
+          },
+          {
+            "name": "Fluence Nispera",
+            "url": "https://fluenceenergy.com/nispera-energy-asset-performance-management-software/",
+            "note": "APM for wind/solar/storage: real-time monitoring, automated reporting, independent evaluation of contractual obligations (PR/availability) so owners can challenge O&M. Backed by Fluence (NASDAQ: FLNC).",
+            "funded": "yes"
+          },
+          {
+            "name": "Radian Generation",
+            "url": "https://radiangen.com",
+            "note": "Asset-owner-focused: yield analytics, underperformance detection, PPA/contract compliance, financial reporting, investor reporting. Funded.",
+            "funded": "yes"
+          }
+        ]
+      },
+      {
+        "title": "AI property inventory report generation for UK letting agents (photos + voice in, dispute-ready report out)",
+        "verdict": "crowded",
+        "why": "KILL — the 'voice/photos in, dispute-ready report out' wedge is already shipped by iListingAI, InventoryBase BaseAI, Peach, Inspecto, Inventorai and Property Inspect, on top of an award-winning, well-distributed incumbent (Inventory Hive); the offshore typing 'evidence' is the legacy cost these players are already eating, not an open gap. A no-network solo founder has no path to the distribution/trust moats that decide this market.",
+        "top_competitors": [
+          {
+            "name": "iListingAI",
+            "url": "https://www.ilisting.ai/",
+            "note": "Directly the candidate pitch. AI listens to spoken observations and auto-maps them to photos; generates 'legally compliant inventories 10x faster', formatted to industry standard and 'ready for TDS adjudication'. Self-described 'UK's leading inventory software'. AI-native, voice-in.",
+            "funded": "unknown / likely bootstrapped or small"
+          },
+          {
+            "name": "InventoryBase (BaseAI)",
+            "url": "https://inventorybase.co.uk/",
+            "note": "Established UK market leader for inventory clerks. BaseAI add-on 'instantly turns property inspection photos and notes into professional, audit-ready reports', auto-generates descriptions/conditions from photos. Propertymark industry supplier.",
+            "funded": "Yes — Seed via Second Century Ventures (NAR's venture arm), REACH UK proptech program"
+          },
+          {
+            "name": "Peach Inventory Software",
+            "url": "https://www.peachsoftware.co.uk/",
+            "note": "Exact pitch: 'turns inspection photos and voice notes into professional reports instantly without manual typing'. Check-in/check-out/interim for letting agents, branded PDFs, e-signatures.",
+            "funded": "unknown"
+          }
+        ]
+      },
+      {
+        "title": "Restricted-fund & grant-lifecycle tracker for small/mid UK charities (the layer Xero deliberately doesn't do)",
+        "verdict": "crowded",
+        "why": "KILL — the precise 'recipient-side restricted-fund/grant-lifecycle layer for small UK charities' is already occupied by a free, UK, funder-backed incumbent (Plinth) plus a Xero add-on (Calxa) that literally fixes the tracking-categories limitation, plus charity-native fund accounting (Liberty, iplicit, Aedon); no defensible wedge or distribution path for a solo, network-less founder.",
+        "top_competitors": [
+          {
+            "name": "Plinth",
+            "url": "https://www.plinth.org.uk/",
+            "note": "Near-exact match. UK, AI grant management for grant RECIPIENTS (explicitly 'small charities applying for, receiving and managing grants'). Does budget-vs-actual per budget line, deadline tracking/reminders, AI-assisted funder reporting, document storage. 1,500+ charities, 60+ funders, £200m grantmaking managed. FREE FOREVER for small charities/CICs. This alone heavily wounds the gap.",
+            "funded": "Yes — venture-backed, scaled (1,500+ charities, named funder clients like Steve Morgan Foundation, Rank Foundation)"
+          },
+          {
+            "name": "Liberty Accounts",
+            "url": "https://www.libertyaccounts.com/accounting/charity/fund-accounting.jsp",
+            "note": "UK charity accounting since 2003. TRUE fund accounting (restricted/unrestricted/designated), per-fund allocation on every transaction, SoFA reports, Gift Aid, sub-analysis by activity/fund. Directly targets small UK charities/churches and does what Xero deliberately doesn't.",
+            "funded": "Established profitable incumbent (20+ yrs)"
+          },
+          {
+            "name": "iplicit",
+            "url": "https://www.iplicit.com/key-features/fund-grant-reporting",
+            "note": "UK cloud accounting with inbuilt grant & fund accounting; segments restricted/unrestricted by fund-type, 'does away with spreadsheets to show where grant awards have been spent.' Mid-market but moving down.",
+            "funded": "Yes — well-funded UK scale-up"
+          }
+        ]
+      },
+      {
+        "title": "In-house customs commodity-code classification + HMRC audit-trail tool for UK SME importers",
+        "verdict": "crowded",
+        "why": "KILL - the exact AI-suggestion + confidence-score + HMRC audit-trail product is already sold by multiple funded UK-serving players (iCustoms, TariffTel, Customs IX, Dutiable, Avalara), with HMRC itself piloting AI classification; no defensible moat for a credential-less solo founder.",
+        "top_competitors": [
+          {
+            "name": "iCustoms (iClassification)",
+            "url": "https://www.icustoms.ai/",
+            "note": "London-based, $2.2M seed (Fuel Ventures, ex-HMRC CIO as advisor), HMRC Recognised. Sells the EXACT candidate pitch: AI 10-digit UK code from a description + confidence score + low-confidence human-review flag + audit trail storing date/user/AI suggestion/review notes for HMRC. This is the candidate idea, already funded and live.",
+            "funded": "yes - $2.2M seed"
+          },
+          {
+            "name": "TariffTel / TTClassify",
+            "url": "https://www.tarifftel.com/",
+            "note": "UK classification engine used by ASDA, M&S, Primark, Portwest. AI + expert verification, claims 99.9% accuracy, audits 1.5M+ products. £17/code, 3 free, bulk upload available. Established UK incumbent with blue-chip customers.",
+            "funded": "established/revenue-funded"
+          },
+          {
+            "name": "Dutiable.io",
+            "url": "https://dutiable.io/",
+            "note": "Most direct SME competitor: AI HS code + confidence scores + CSV bulk classification + live EU/US/UK duty rates + tariff-change email alerts + auto-filled customs docs. Free-forever tier, targets Shopify/WooCommerce/Amazon sellers - exactly the candidate's SME slice.",
+            "funded": "unknown/likely bootstrapped"
+          }
+        ]
+      },
+      {
+        "title": "AML check + inspection-ready audit pack for tiny HMRC-supervised firms (estate/letting agents, art dealers, micro-accountants)",
+        "verdict": "crowded",
+        "why": "KILL — every named sub-segment (estate/letting agents, micro-accountants, art dealers) already has cheap, purpose-built, inspection-ready audit-trail products from funded incumbents reaching the very smallest buyer (£10-45/mo, or pay-as-you-go), with CRM/practice-software distribution a solo founder with no network cannot beat.",
+        "top_competitors": [
+          {
+            "name": "Credas",
+            "url": "https://credas.com/sectors/aml-checks-for-estate-agents/",
+            "note": "Leading IDV/AML provider to UK estate/letting sector. Explicit low-cost monthly package for low-volume small agencies, no setup fee. Audit trails for HMRC built in.",
+            "funded": "yes (established, scaled UK proptech compliance vendor)"
+          },
+          {
+            "name": "FigsFlow",
+            "url": "https://figsflow.com/aml-software-for-accountants/",
+            "note": "Purpose-built AML for small/solo UK accounting & bookkeeping practices at £10/mo + £2.10/check. Includes ID verification, sanctions/PEP, risk assessments, ongoing monitoring, full audit trail. Directly serves the 'micro-accountant' buyer in this gap.",
+            "funded": "unknown/bootstrapped but live, commercial, low-priced"
+          },
+          {
+            "name": "ArtAML",
+            "url": "https://www.artaml.com/",
+            "note": "Dedicated AML solution for the art market. Tiered CDD plans from £45/mo explicitly sized for single-user small dealers/galleries (12 KYC/yr). Record-keeping and inspection support included. Directly owns the art-dealer segment of this gap.",
+            "funded": "established niche vendor"
+          }
+        ]
+      },
+      {
+        "title": "Service-charge transparency & year-end reconciliation kit for small residential managing agents (LFRA 2024 + TECH 03/11)",
+        "verdict": "crowded",
+        "why": "KILL - the exact workflow is already productised (SCOAP) and bundled free inside every incumbent block-management platform; the valuable certified-accounts output needs an ICAEW practising certificate the founder lacks, and the LFRA 2024 template change is a free vendor update for whoever owns the demand engine, not a green-field opening.",
+        "top_competitors": [
+          {
+            "name": "SCOAP (Service Charge Online Accounting Package) / Cox Hinkins",
+            "url": "https://blocksonline.co.uk/scoap-accountants-service/",
+            "funded": "bootstrapped/established (Cox Hinkins 50+ yr firm)",
+            "note": "THE near-exact incumbent. Purpose-built software that pulls coded transaction data from Blocks Online, has a trained accountant produce TECH 03/11 accounts, auto-uploads them back and auto-generates surplus/deficit demands. This is the candidate idea, already shipping with the accountant network attached."
+          },
+          {
+            "name": "MRI Qube PM",
+            "url": "https://www.mrisoftware.com/uk/products/qube-pm/",
+            "funded": "yes (MRI Software, PE-backed, global)",
+            "note": "Most-used block demand engine in UK. Claims service-charge accounts production 91% faster (3-4 days to 2 hours). Native apportionment, schedules, year-end."
+          },
+          {
+            "name": "Resident",
+            "url": "https://resident.uk.com/features/",
+            "funded": "VC/growth-backed",
+            "note": "One-click End-of-Year Pack export to accountants, open banking (~80% bookkeeping time saved), unlimited schedules, demands. Directly covers the workflow."
+          }
+        ]
+      },
+      {
+        "title": "Supplier-rebate tracking & claim recovery for small UK distributors/wholesalers/merchants",
+        "verdict": "crowded",
+        "why": "KILL — UK SME merchants/distributors are already served from both ends: their dominant ERP (Kerridge K8) bundles rebate management, and funded UK-native pure-plays (Enable, e-bate) explicitly own the affordable + buy-side claim-recovery positioning. The candidate's own 'evidence' is incumbent marketing copy. A networkless solo founder has no defensible wedge and no fast self-serve path.",
+        "top_competitors": [
+          {
+            "name": "Enable (DealTrack)",
+            "url": "https://www.enable.com/supplier-rebates/distribution",
+            "funded": "Yes — heavily VC-backed (~$120m+ raised, Insight/Norwest); UK-origin from DCS Group",
+            "note": "Category leader. Explicitly markets buy-side distributor supplier-rebate CLAIM RECOVERY ('4% of margin goes unclaimed', 'look back retroactively and claim missed earnings'). This IS the candidate's exact pitch, already monetised."
+          },
+          {
+            "name": "e-bate",
+            "url": "https://www.e-bate.io/",
+            "funded": "Yes — £950k MEIF/BusinessCloud-backed, UK (Leicester)",
+            "note": "Built specifically to fill the 'affordable off-the-shelf rebate' SME gap — same thesis as this candidate. Serves buying-group structures (SPAR, James Hall). Directly forecloses the positioning."
+          },
+          {
+            "name": "Kerridge K8 rebate module",
+            "url": "https://www.kerridgecs.com/page/solutions/rebates-and-pricing",
+            "funded": "Yes — KCS is PE-owned, dominant UK merchant ERP",
+            "note": "Native rebate management built INTO the ERP that UK builders'/electrical/plumbing merchants already run. Covers SPAs, time-specific rebates, claim accuracy. The target vertical's incumbents already have it bundled."
+          }
+        ]
+      },
+      {
+        "title": "CQC registration + recurring compliance/PIR pack for small care providers",
+        "verdict": "crowded",
+        "why": "KILL — the exact wedge (AI registration pack + mock interview at £99) already ships via ReporticaAI, and the recurring PIR/compliance layer is dominated by well-funded incumbents (RLDatix/QCS, Access, Radar, Birdie) plus a wave of new AI entrants; no moat for a no-network solo founder.",
+        "top_competitors": [
+          {
+            "name": "ReporticaAI",
+            "url": "https://www.reporticaai.co.uk/cqc-registration",
+            "note": "DIRECT KILLER. Already ships the EXACT candidate wedge: self-serve AI generates 9 CQC registration documents (Statement of Purpose, Quality Statements, Business Plan w/ financials, Specialism Rationale, Registered Manager Application, 12 policies) PLUS a 100+ question interactive CQC mock interview exam. £99 one-time (first report free) vs £2-6k consultants. Self-serve, UK data residency. Solo founder gap idea already exists at price floor.",
+            "funded": "Bootstrapped/unknown indie, but already executing the precise idea"
+          },
+          {
+            "name": "QCS Start / QCS Compliance Centre (RLDatix)",
+            "url": "https://www.qcs.co.uk/qcs-compliance-centre/",
+            "note": "Dominant incumbent. 'QCS Start' explicitly productises CQC registration step-by-step guidance for single-site startups; full Compliance Centre covers policies, PIR data reports, ongoing compliance. 140,000+ care professionals.",
+            "funded": "Yes — acquired by RLDatix (Aug 2022), PE-backed by Five Arrows, TA Associates, Nordic Capital"
+          },
+          {
+            "name": "The Access Group (Care Compliance)",
+            "url": "https://www.theaccessgroup.com/en-gb/health-social-care/care-management-software/care-compliance/",
+            "note": "Major incumbent. CQC compliance, statement-of-purpose tooling, PIR guidance, single assessment framework evidence mapping, AI inspection-readiness.",
+            "funded": "Yes — Access Group is one of UK's largest software companies (HgCapital/TA Associates backed, multi-billion valuation)"
+          }
+        ]
+      },
+      {
+        "title": "Independent-school fee billing, VAT & bursary/remission reconciliation (wedge onto SIMS/iSAMS/Engage)",
+        "verdict": "crowded",
+        "why": "KILL - the exact MIS-agnostic billing+reconciliation+VAT wedge already ships from Furlong FeeMaster, WCBS passFINANCE/HUBpay and the native MIS modules (all consolidator/PE-owned), in a shrinking, network-gated, trust-critical market a solo no-network founder cannot crack.",
+        "top_competitors": [
+          {
+            "name": "Furlong FeeMaster (Furlong Solutions / SchoolBase)",
+            "url": "https://furlongschoolbase.co.uk/furlong-feemaster/",
+            "note": "This IS the proposed wedge. Standalone fee-billing engine explicitly 'compatible with all MIS platforms' + Sage/Xero, handling family invoicing, fee payer rules, discounts/recharges, bursaries, automated reminders, parent payment portal. Owned by Volaris Group (acquired 2017), a well-capitalised Canadian vertical-software consolidator.",
+            "funded": "Owned by Volaris Group (Constellation Software subsidiary) - deep capital, acquisitive"
+          },
+          {
+            "name": "WCBS passFINANCE + HUBpay + VAT reconciliation service",
+            "url": "https://www.wcbs.co.uk/finance-experts/finance-on-premise-2/",
+            "note": "Dominant independent-school finance incumbent (ISBA-endorsed as software of choice for majority). Nominal ledger, bank reconciliation, bursary/grant processing, HUBpay automated fee collection + reconciliation, MTD VAT compliance for years, and an explicit 'VAT reconciliation service' to help schools with their first VAT return. Directly covers every claimed gap including VAT.",
+            "funded": "Established sector incumbent; partnered with Furlong (Volaris)"
+          },
+          {
+            "name": "iSAMS Fee Billing Manager / iFinance",
+            "url": "https://www.isams.com/platform/modules/feebilling/",
+            "note": "Native billing in the largest independent-school MIS. Explicitly added automatic VAT calculation 'according to UK Independent school legislative requirements' post-Jan-2025. Multiple billing methods for applicants/current/alumni. Owned by Iris Software Group (PE-backed).",
+            "funded": "Owned by IRIS Software Group (PE-backed, ~£300m+ revenue)"
+          }
+        ]
+      },
+      {
+        "title": "Building Assessment Certificate / Safety Case 'submission-readiness' engine for smaller HRB accountable persons",
+        "verdict": "crowded",
+        "why": "KILL — the exact 'submission-readiness engine' already exists (BB-SCR ships AI gap-assessment + auto-drafted Safety Case Reports), the golden-thread layer is crowded with funded and credentialed incumbents, and the durable moat is regulatory trust/insurance/certification that a solo unknown founder cannot assemble.",
+        "top_competitors": [
+          {
+            "name": "BB-SCR (Black Boots Technology Ltd)",
+            "url": "https://bbscr.co.uk/",
+            "note": "MOST DIRECT COMPETITOR — this IS the candidate idea, already built. AI web app: upload safety case info, get an automated initial assessment against BSR criteria, it flags gaps/missing info and risks, then generates a compliant draft Safety Case Report in editable Word in minutes. ISO 9001/27001/42001 certified, aligned to BSR assessment criteria. Targets PAPs and their agents. Likely bootstrapped/SME, not VC-listed, but operational and credentialed.",
+            "funded": "unknown (operating, ISO-certified consultancy spinout)"
+          },
+          {
+            "name": "Operance",
+            "url": "https://www.operance.app/",
+            "note": "Golden-thread platform explicitly marketing BSR submission-readiness / 'meeting BSR requirements with confidence' step-by-step. Direct overlap on the submission-readiness positioning.",
+            "funded": "UK-funded proptech"
+          },
+          {
+            "name": "Building Safety Register",
+            "url": "https://buildingsafetyregister.co.uk/",
+            "note": "End-to-end HRB compliance SaaS: writes the safety case for you, maintains golden thread, produces safety case report on demand, 'regulator ready', supports applying for the Building Assessment Certificate. Targets PAPs/APs/managing agents — exact buyer.",
+            "funded": "unknown (commercial SaaS)"
+          }
+        ]
+      },
+      {
+        "title": "Failure-to-prevent-fraud 'reasonable procedures' evidence-pack builder for £36m-turnover mid-market firms",
+        "verdict": "crowded",
+        "why": "KILL — structurally identical to the long-served Bribery Act 'adequate procedures' market; GRC incumbents, training vendors, Big 4 and law firms already productised the FTPF evidence pack within months, and the moat is trust/credentials the founder doesn't have.",
+        "top_competitors": [
+          {
+            "name": "Skillcast",
+            "url": "https://www.skillcast.com/online-training/failure-to-prevent-fraud-ftpf",
+            "note": "UK GRC/e-learning incumbent. Already ships FTPF training + Policy Hub (distribute policies, track attestation, automated reminders), whistleblowing register, suspicious-activity register, risk assessment. Covers nearly the whole six-principle evidence stack for mid-market. Profitable, established.",
+            "funded": "Established profitable UK company (not VC-dependent)"
+          },
+          {
+            "name": "VinciWorks",
+            "url": "https://vinciworks.com/course/fraud-failure-prevent-640/",
+            "note": "UK GRC + free FTPF policy template + training + Omnitrack workflow/register tooling for documenting controls. Directly serves the same buyer.",
+            "funded": "Yes (PE/growth-backed, per Crunchbase profile)"
+          },
+          {
+            "name": "NAVEX (NAVEXEngage/One)",
+            "url": "https://www.navex.com/en-us/solutions/regulations/eccta-compliance-guidance/",
+            "note": "Global GRC leader with dedicated ECCTA compliance guidance + policy management, training, whistleblowing, risk assessment. Serves UK. Heavily funded/scaled.",
+            "funded": "Yes (PE-owned, BC Partners/Vista lineage)"
+          }
+        ]
+      },
+      {
+        "title": "UK CBAM (HMRC) compliance + supplier-emissions data collection for metal/cement/fertiliser importers",
+        "verdict": "moderately-served",
+        "why": "KILL — the precise product (UK-specific HMRC CBAM platform with supplier outreach, emissions calc, and API return filing) already exists and is live (Oportax), alongside funded carbon platforms (CarbonChain/YC) and EU CBAM giants pivoting to UK; no durable moat for a no-network solo founder and £1m ARR is unlikely.",
+        "top_competitors": [
+          {
+            "name": "Oportax (incl. CBAMcheck)",
+            "url": "https://www.oportax.com/",
+            "note": "NEAR-EXACT MATCH and likely solo/small-team. Purpose-built UK CBAM (HMRC) platform, LIVE for onboarding now, from £200/mo. Does the entire proposed workflow: import purchase/CDS data, multilingual supplier emissions outreach + auto follow-up, embedded emissions calc on verified data, real-time liability tracking, audit-ready HMRC returns with direct API filing planned before first deadline. Built on HMRC draft secondary legislation, updated continuously. Free CBAMcheck.co.uk exposure checker as a lead magnet feeding the paid platform — i.e. exactly the playbook this founder would run, already executed. Funding not disclosed.",
+            "funded": "unknown (looks bootstrapped/early)"
+          },
+          {
+            "name": "CarbonChain",
+            "url": "https://www.carbonchain.com/carbon-reporting/uk-cbam",
+            "note": "Funded incumbent (Y Combinator, Voyager VC, USV). Dedicated UK CBAM page + 'CarbonChain Connect': scope identification, reliable emissions data, accurate return filing. Strong in metals/commodities — directly the target verticals (steel, aluminium).",
+            "funded": "yes (YC, Voyager VC, Union Square Ventures)"
+          },
+          {
+            "name": "carbmee (EIS)",
+            "url": "https://www.carbmee.com/knowledge-insights/ebooks-whitepapers/uk-cbam-2027",
+            "note": "Well-funded German carbon platform actively publishing UK-CBAM-2027 material and positioning EIS for UK CBAM regulatory automation. EU CBAM engine trivially extends to UK rules.",
+            "funded": "yes (VC-backed, ~$20m+ raised)"
+          }
+        ]
+      },
+      {
+        "title": "Searchable/mapped Biodiversity Gain Site Register + 30-year obligation tracker for LPA ecology teams",
+        "verdict": "crowded",
+        "why": "KILL — the exact problem is already solved by a venture-backed leader (Verna/Mycelia, 100+ LPAs, ~$1m ARR) plus entrenched LPA vendors (Idox, DEF) and a free portal (Joe's Blooms); TAM (~300 LPAs × ~£10k ≈ £3m) is small and largely captured, and the moat is procurement access a solo founder cannot get.",
+        "top_competitors": [
+          {
+            "name": "Verna / Mycelia",
+            "url": "https://verna.earth/mycelia-for-local-authorities",
+            "funded": "yes — raised $4M (Übermorgen Ventures, NAP, Love Ventures, Concrete Ventures, Climate VC)",
+            "note": "THE killer competitor. 100+ LPAs paying ~£10k/year; crossed $1M ARR within a year of launch. Explicitly tracks BNG monitoring data, responsibilities and reporting DEADLINES for every case, with automated statutory reporting. This is the exact candidate value prop, already at the founder's £1m-ARR target and venture-backed."
+          },
+          {
+            "name": "DEF Software — MasterGov BNG module",
+            "url": "https://www.def.co.uk/mastergov/biodiversity-net-gain",
+            "funded": "established LPA back-office vendor (private)",
+            "note": "Dedicated module built precisely for the LPA duty to 'monitor for 30 years following approval'. Inspection scheduling, alert/reminder functionality, GIS register of strategic BNG sites, reporting to Natural England. Entrenched in LPA procurement."
+          },
+          {
+            "name": "Idox / Exegesis — CMSi for BNG",
+            "url": "https://idoxgeospatial.co.uk/2025/12/02/biodiversity-net-gain-adaptive-management-software/",
+            "funded": "yes — Idox is a listed/PE-owned UK LPA software giant",
+            "note": "Idox dominates UK LPA planning systems. CMSi adaptive-management software supports LPA recording, long-term monitoring and 30-year reporting. Owns the incumbent relationship the founder would need to displace."
+          }
+        ]
+      },
+      {
+        "title": "MEES non-compliance targeting engine for council private-rented-sector enforcement teams",
+        "verdict": "moderately-served",
+        "why": "KILL — real manual pain exists, but it's a feature inside Kamma's existing council product and the government's free PRS Database is being built to erase the core matching problem from late 2026; no moat and a near-impossible public-sector cold-sell for a no-network solo founder.",
+        "top_competitors": [
+          {
+            "name": "Kamma (Kamma Data)",
+            "url": "https://www.kammadata.com/how-we-can-help/local-authorities/",
+            "funded": "Yes — ~£5.2m raised (£1.6m 2020 seed Triple Point; £3.6m 2023, Clean Growth Fund/Triple Point/Pi Labs/Conduit/Kiilto)",
+            "note": "Direct and most dangerous competitor. Already sells a council-facing data-matching enforcement product that aggregates EPC, council-tax, electoral roll, Companies House and letting-portal data to identify non-compliant landlords. Currently licensing-focused (HMO/selective), but the exact targeting engine, council relationships and EPC data are already in place — MEES targeting is a feature add for them, not a new build."
+          },
+          {
+            "name": "Kamma Climate",
+            "url": "https://www.kammaclimate.com/",
+            "funded": "Yes (same group as Kamma)",
+            "note": "PRS/EPC energy + retrofit analytics, but sold to lenders, REITs, housing associations — NOT council enforcement. Adjacent, not direct."
+          },
+          {
+            "name": "Civica Cx Housing Enforcement",
+            "url": "https://www.civica.com/en-gb/product-pages/cx-housing-enforcement-software/",
+            "funded": "Yes (large incumbent, PE-owned)",
+            "note": "Dominant council enforcement case-management system for HMO/PRS complaints. Manages cases but is not a proactive targeting/lead-gen engine — weak at the matching step the candidate addresses."
+          }
+        ]
+      },
+      {
+        "title": "H-CLIC homelessness return validator + FOI/SAR redaction assistant for council teams",
+        "verdict": "crowded",
+        "why": "KILL - both halves are served by funded, accredited incumbents (Locata/CDP embed the free H-CLIC schematron; RedactXpert/eCase/Civica own FOI redaction with framework placements), and the real moat is accreditation a no-network solo founder cannot acquire.",
+        "top_competitors": [
+          {
+            "name": "Locata Housing Services (LocataPro / HPA2)",
+            "url": "https://locatahousingservices.org.uk/hpa2-validators-will-cut-down-h-clic-upload-errors/",
+            "funded": "Established commercial supplier, 120+ LAs",
+            "note": "H-CLIC half. Major homelessness case-management system used by 120+ local authorities. Has built-in Case Validator and Upload Validator running MHCLG's schematron, plus a direct HCLIC->DELTA API. Directly solves the error-tracing problem inside the system where case data lives."
+          },
+          {
+            "name": "CDP Soft (HOAMS)",
+            "url": "https://www.cdpsoft.com/hoams/",
+            "funded": "Established commercial supplier",
+            "note": "H-CLIC half. MHCLG data validation schematron fully integrated; assessors validate cases with the same rules applied at DELTA upload."
+          },
+          {
+            "name": "Home Connections (HOPE-HRA)",
+            "url": "https://homefinderuk.org/hope-hra-software",
+            "funded": "Established commercial supplier",
+            "note": "H-CLIC half. Homelessness case management that assists in creating H-CLIC returns; HCLIC DELTA API offering."
+          }
+        ]
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Discover"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Synthesize"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 3,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "find:reddit-wishlist",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "aa9d77248c04fc605",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782290928133,
+      "queuedAt": 1782290928101,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "UK Reddit & forum mining — \"I wish a tool existed\" / rage t…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291300004,
+      "tokens": 71804,
+      "toolCalls": 52,
+      "durationMs": 371871,
+      "resultPreview": "{\"lens\":\"UK Reddit & forum mining — \\\"I wish a tool existed\\\" / rage threads about manual admin among UK trades, small businesses, and regulated professionals. Honest meta-finding: the loudest, most-searched pains (trade quoting/invoicing, AML for conveyancers, MTD for landlords, NHS dental UDA clawback, electrician certs, locum agency admin) ALREADY have funded UK incumbents — surfacing those wou…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "find:review-complaints",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a4df9629d1e4a4ec6",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782290928136,
+      "queuedAt": 1782290928101,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Mining 1-3 star reviews and UK practitioner forums for vert…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291162794,
+      "tokens": 42888,
+      "toolCalls": 27,
+      "durationMs": 234658,
+      "resultPreview": "{\"lens\":\"Mining 1-3 star reviews and UK practitioner forums for vertical software that UK firms use, to find recurring, money-backed pain. The dominant, cross-vertical signal was not \\\"feature X is missing\\\" (incumbents are adding those) but vendor data lock-in and migration hell: when a UK firm tries to leave or switch its vertical software, the incumbent either charges a ransom for read-only acc…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "find:job-ad-manual-work",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a87d1172740a14036",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291162797,
+      "queuedAt": 1782290928101,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "UK job ads as a signal: roles advertised at scale that are …",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291455145,
+      "tokens": 49887,
+      "toolCalls": 23,
+      "durationMs": 292348,
+      "resultPreview": "{\"lens\":\"UK job ads as a signal: roles advertised at scale that are secretly \\\"a human doing repetitive data/document work\\\" each map to an automatable workflow with an existing budget (the salary). I mined Reed/Indeed/NHS Jobs/totaljobs for high-volume repetitive-clerical roles, then traced each back to the underlying recurring business pain, UK-specific evidence, and the competitive landscape — …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "find:new-regulation",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a2ee5a601e76b9d7d",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291300008,
+      "queuedAt": 1782290928101,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "NEW or upcoming UK regulation (2025-2027) creating fresh, d…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291543220,
+      "tokens": 58371,
+      "toolCalls": 28,
+      "durationMs": 243212,
+      "resultPreview": "{\"lens\":\"NEW or upcoming UK regulation (2025-2027) creating fresh, deadline-driven compliance/reporting pain before software exists — regulation as a forced-buyer moat. Filtered hard for UK-only buyers, deprioritised crowded/funded spaces (procurement, bid-writing, generic carbon accounting) and regs that have been watered down (EUDR, CSRD post-Omnibus) which weaken the forced-buyer effect.\",\"gaps…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "find:new-open-data",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a74154911af1d2dce",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291455148,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Newly-opened / newly-standardised / newly-API'd UK public d…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291876127,
+      "tokens": 73039,
+      "toolCalls": 39,
+      "durationMs": 420978,
+      "resultPreview": "{\"lens\":\"Newly-opened / newly-standardised / newly-API'd UK public datasets that nobody has yet turned into a product. The strongest cluster is UK property/land data: the government is simultaneously (a) standardising national planning-constraint data via the live Planning Data Platform API (100+ LPAs, OGL), (b) centralising and AI-digitising Local Land Charges into one national register (running …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "find:legacy-incumbents",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a2fc697f053c396e5",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291543224,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Industries running on ancient/on-prem software (1990s-2000s…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782291883184,
+      "tokens": 54315,
+      "toolCalls": 32,
+      "durationMs": 339960,
+      "resultPreview": "{\"lens\":\"Industries running on ancient/on-prem software (1990s-2000s desktop tools, ugly UX) with high switching reluctance but deep dissatisfaction — ripe for an AI-native replacement of ONE painful module rather than the whole regulated core. I deliberately rejected the most crowded \\\"rip-and-replace the whole PMS\\\" plays (conveyancing case management, estate agency CRM, care home management, br…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "find:spreadsheet-hell",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a565a49843d2d7f7c",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291876132,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Spreadsheet hell — UK industry workflows still run on Excel…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292289142,
+      "tokens": 72681,
+      "toolCalls": 42,
+      "durationMs": 413010,
+      "resultPreview": "{\"lens\":\"Spreadsheet hell — UK industry workflows still run on Excel/email/paper in 2026 where a single error is financially costly, signalling an unbuilt or under-built vertical tool. I hunted across ~15 verticals, hard-rejected the crowded ones (construction CVR: Planyard/4PS/Access/RedSky; SaaS rev-rec: Maxio/Zuora/Chargebee/LedgerUp/Finlens; rebate mgmt: Enable/Flintfox/Zilliant; bordereaux: R…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "find:freelance-demand",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "ab7b6e6b072badd1a",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782291883187,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Mining PeoplePerHour/Upwork/Fiverr for recurring, high-volu…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292162862,
+      "tokens": 56134,
+      "toolCalls": 33,
+      "durationMs": 279675,
+      "resultPreview": "{\"lens\":\"Mining PeoplePerHour/Upwork/Fiverr for recurring, high-volume manual tasks UK businesses repeatedly pay freelancers to do — where repeated paid demand proves an automatable product, the buyer already has budget (they're paying a human now), and the workflow is structured enough for AI to own end-to-end. I rejected veins already saturated with tooling: ecommerce product/price import (Matri…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "find:ai-newly-possible",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "acfcc35b07625be04",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292162865,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Tasks newly tractable post-LLM: reading/understanding messy…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292460879,
+      "tokens": 55090,
+      "toolCalls": 27,
+      "durationMs": 298014,
+      "resultPreview": "{\"lens\":\"Tasks newly tractable post-LLM: reading/understanding messy unstructured documents and producing judgement-light knowledge work that was previously uneconomic to automate — focused strictly on UK buyers, UK regulation, and pricing in GBP. I prioritised problems still solved by Excel/manual labour/lawyers with no shipped software incumbent, and deprioritised areas already crowded with fund…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "find:consultant-replacement",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "aca611bacbbedb045",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292289146,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Expensive niche UK consulting/advisory work (£1k+/day) that…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292579617,
+      "tokens": 51120,
+      "toolCalls": 23,
+      "durationMs": 290471,
+      "resultPreview": "{\"lens\":\"Expensive niche UK consulting/advisory work (£1k+/day) that is actually a repeatable, document-and-rules-driven process AI could productise — targeting either the end-client who currently overpays consultants, or the consultants themselves as the buyer (sell them the tool that does 80% of their billable drudgery). I deliberately down-weighted R&D-tax and ISO-27001-end-client because they …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "find:construction-trades",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "ae7065b1118bd4e3f",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292460883,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Back-office/ops pain for UK construction firms, contractors…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292739390,
+      "tokens": 48076,
+      "toolCalls": 26,
+      "durationMs": 278507,
+      "resultPreview": "{\"lens\":\"Back-office/ops pain for UK construction firms, contractors and trades — hunting problems that are recurring, budget-backed, and currently solved with spreadsheets, lawyers or nothing. I deliberately down-ranked the crowded veins I confirmed are already contested by funded/young UK players: estimating & takeoff (RapidQuote, RenoCalc, EasyEstimate, Buildxact), snagging/defects (Snagmaster,…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 12,
+      "label": "find:private-healthcare",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a09b2387c18e08546",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292579621,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Ops/admin pain in UK private clinics (dental, vet, optician…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782292899011,
+      "tokens": 55055,
+      "toolCalls": 28,
+      "durationMs": 319390,
+      "resultPreview": "{\"lens\":\"Ops/admin pain in UK private clinics (dental, vet, optician, physio, aesthetics). I hunted bottom-up for recurring, budget-backed admin problems, then aggressively filtered out crowded categories. I deliberately REJECTED: appointment reminders / recall / lapsed-patient reactivation (saturated: Viva AI, DentalBase, GoHighLevel, every PMS), no-show/DNA tooling (saturated), generic CQC-denta…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 13,
+      "label": "find:legal-conveyancing",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a3d98a3f0c5ffcc37",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292739395,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Workflow pain in small UK law firms (conveyancers, probate/…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293009728,
+      "tokens": 45036,
+      "toolCalls": 23,
+      "durationMs": 270332,
+      "resultPreview": "{\"lens\":\"Workflow pain in small UK law firms (conveyancers, probate/private client practitioners, notaries): I hunted for recurring, deadline-driven, document-heavy manual tasks where a definable UK buyer has budget and the work is currently done badly (spreadsheets, retyping, manual cross-checking) or not at all. I deliberately steered AWAY from already-crowded sub-niches I confirmed are saturate…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 14,
+      "label": "find:accounting-tax",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "af5e1ce0d92761e82",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782292899014,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293256882,
+      "tokens": 60156,
+      "toolCalls": 24,
+      "durationMs": 357867,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":5}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 15,
+      "label": "find:logistics-haulage",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a923a11cb1bb674df",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782293009732,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293406033,
+      "tokens": 64822,
+      "toolCalls": 27,
+      "durationMs": 396301,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":5}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 16,
+      "label": "find:agriculture",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "aae4226dd76027822",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "error",
+      "startedAt": 1782293256886,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "UK farms and agri-businesses. Bottom-up hunt for recurring,…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293732108,
+      "error": "agent({schema}): StructuredOutput retry cap (5) exceeded — 5 failed calls with no valid output",
+      "tokens": 69221,
+      "toolCalls": 30,
+      "durationMs": 475222
+    },
+    {
+      "type": "workflow_agent",
+      "index": 17,
+      "label": "find:property-management",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a25fb8e80bfaf8eac",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782293406037,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "UK leasehold / block & estate management / building-safety:…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293676175,
+      "tokens": 46633,
+      "toolCalls": 24,
+      "durationMs": 270138,
+      "resultPreview": "{\"lens\":\"UK leasehold / block & estate management / building-safety: hunting B2B regulatory-pain workflows where small managing agents and volunteer RMC/RTM directors are squeezed by new statutory duties (Building Safety Act 2022, Leasehold & Freehold Reform Act 2024) but only enterprise software exists. Deliberately biased AWAY from the consumer leaseholder-side \\\"analyse my service charge with A…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 18,
+      "label": "find:energy-renewables",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "adf8019f6b01d96f4",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782293676179,
+      "queuedAt": 1782290928102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Operational/admin workflow pain across the UK energy/renewa…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782293917043,
+      "tokens": 46976,
+      "toolCalls": 22,
+      "durationMs": 240863,
+      "resultPreview": "{\"lens\":\"Operational/admin workflow pain across the UK energy/renewables/grid value chain — i.e. the unglamorous \\\"keep the asset compliant, paid, and in the queue\\\" back-office work that independent generators, small asset owners, and developers currently do in Excel or pay consultants £k/day for. Hunted specifically AWAY from market-intelligence dashboards and away from crowded planning/bid/gran…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 19,
+      "label": "find:manufacturing-eng",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a3c1f421e0378a734",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782293732112,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294080772,
+      "tokens": 62953,
+      "toolCalls": 26,
+      "durationMs": 348660,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":5}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 20,
+      "label": "find:childcare-education",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "ab2c0a9206015b4eb",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782293917047,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Hunting unmet ops/compliance problems for UK nurseries, chi…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294182506,
+      "tokens": 47473,
+      "toolCalls": 24,
+      "durationMs": 265459,
+      "resultPreview": "{\"lens\":\"Hunting unmet ops/compliance problems for UK nurseries, childminders, tutoring, SEND, MATs and schools beyond crowded MIS systems. Approach: find the regulatory/statutory duty that creates recurring manual work AND personal/legal liability for a definable buyer, then check whether dedicated software already exists. I deliberately discarded several veins that are already crowded or poorly …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 21,
+      "label": "find:hospitality-events",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "ad19e22f8a0c26c49",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294080777,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Back-office pain for UK restaurants, pubs, hotels, caterers…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294344019,
+      "tokens": 49389,
+      "toolCalls": 24,
+      "durationMs": 263241,
+      "resultPreview": "{\"lens\":\"Back-office pain for UK restaurants, pubs, hotels, caterers and event firms — focusing on regulatory/compliance record-keeping and allergen liability, where stakes are high, workarounds are unowned spreadsheets, and incumbents are either US-skewed, generic, or solicitor-priced. Deliberately down-weighted the genuinely crowded sub-veins I confirmed by name (rotas: Deputy/Findmyshift/7shift…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 22,
+      "label": "find:recruitment-staffing",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "af496236f0bcc739a",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294182510,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294557512,
+      "tokens": 65578,
+      "toolCalls": 29,
+      "durationMs": 375002,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":5}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 23,
+      "label": "find:insurance-claims",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "aec894da3a9924932",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294344023,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Unmet, document-heavy, manual-rekeying problems for UK insu…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294563861,
+      "tokens": 48168,
+      "toolCalls": 25,
+      "durationMs": 219838,
+      "resultPreview": "{\"lens\":\"Unmet, document-heavy, manual-rekeying problems for UK insurance brokers, MGAs/coverholders, and loss adjusters — found bottom-up from regulatory pain, trade-press complaints, and manual workarounds, filtered to exclude crowded sub-niches (insurer-side bordereau cleansing, broker e-trade/extranet rekeying, submission triage) where funded UK/global players already operate.\",\"gaps\":[{\"title…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 24,
+      "label": "find:fca-financial",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a13e208f80442004b",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294557516,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Unmet compliance/ops problems for small FCA-regulated firms…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294851026,
+      "tokens": 55361,
+      "toolCalls": 26,
+      "durationMs": 293509,
+      "resultPreview": "{\"lens\":\"Unmet compliance/ops problems for small FCA-regulated firms (IFAs, wealth, payments, consumer credit). I hunted for specific, recurring, regulator-driven obligations small firms are visibly FAILING at (per FCA multi-firm reviews), where the pain is evidencing/monitoring/data-reconciliation rather than the headline task. I deliberately REJECTED saturated/dead veins: (1) suitability-report …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 25,
+      "label": "find:charities-grants",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a19e90e400f90d622",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294563864,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782294907570,
+      "tokens": 60137,
+      "toolCalls": 26,
+      "durationMs": 343706,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":9}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 26,
+      "label": "find:local-government",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "add3dc51b517f2b54",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294851031,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Unmet operational problems inside UK local councils and pub…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782295121755,
+      "tokens": 46606,
+      "toolCalls": 21,
+      "durationMs": 270724,
+      "resultPreview": "{\"lens\":\"Unmet operational problems inside UK local councils and public bodies — statutory casework and reporting workflows where a solo AI vendor can attack a document-heavy, deadline-driven, budget-backed bottleneck that incumbent case-management systems (Liquidlogic, Mosaic, Civica) record but do not actually do the work for.\",\"gaps\":[{\"title\":\"SEND tribunal appeal pack + working-document assem…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 27,
+      "label": "find:transport-marine-aviation",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a05fbf19d6208396f",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782294907573,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782295352099,
+      "tokens": 74940,
+      "toolCalls": 31,
+      "durationMs": 444525,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":5}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 28,
+      "label": "find:waste-environmental",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a0d8675efe805a686",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782295121760,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "UK waste, recycling, environmental services and EPR/duty-of…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782295452002,
+      "tokens": 59105,
+      "toolCalls": 27,
+      "durationMs": 330241,
+      "resultPreview": "{\"lens\":\"UK waste, recycling, environmental services and EPR/duty-of-care compliance — hunting paperwork-heavy, regulator-driven recurring pain where a solo founder + AI can build a focused workflow/data tool, while strictly avoiding the parts of this vein already crowded with funded players (DWTS receiving-site software, generic SME duty-of-care apps, and pure RAM RAG-scoring tools).\",\"gaps\":[{\"t…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 29,
+      "label": "find:death-probate-estate",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a505ad7e8dd459a14",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782295352103,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782295696158,
+      "tokens": 67624,
+      "toolCalls": 31,
+      "durationMs": 344054,
+      "resultPreview": "{\"lens\":\"test\",\"gaps\":[{\"title\":\"t\",\"problem\":\"p\",\"who_suffers\":\"w\",\"evidence\":\"e\",\"why_unsolved\":\"u\",\"ai_unlock\":\"a\",\"monetization\":\"m\",\"fmf\":8}]}"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 30,
+      "label": "find:social-care-pharmacy",
+      "phaseIndex": 1,
+      "phaseTitle": "Discover",
+      "agentId": "a2790e6202c4ab3c2",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782295452006,
+      "queuedAt": 1782290928103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Unmet ops/compliance problems for UK care homes, domiciliar…",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782295696578,
+      "tokens": 45600,
+      "toolCalls": 22,
+      "durationMs": 244572,
+      "resultPreview": "{\"lens\":\"Unmet ops/compliance problems for UK care homes, domiciliary care, pharmacies and supported living — focusing on regulatory and funding-claim workflows where the pain is acute, recurring, quantified in £, and where incumbents are either generic reminder tools or expensive human consultants rather than purpose-built evidence/forecasting engines.\",\"gaps\":[{\"title\":\"Pharmacy First threshold …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 31,
+      "label": "dedup+cluster",
+      "phaseIndex": 2,
+      "phaseTitle": "Synthesize",
+      "agentId": "a4028d7056d23e925",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782295696613,
+      "queuedAt": 1782295696584,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296355814,
+      "tokens": 174675,
+      "toolCalls": 2,
+      "durationMs": 659201,
+      "resultPreview": "{\"clusters\":[{\"title\":\"Data-liberation + read-only compliant archive for UK firms leaving legacy vertical software\",\"problem\":\"When a UK professional-services firm (accountants, solicitors, recruiters, estate/letting agents) switches off its incumbent vertical software, the incumbent makes leaving brutally expensive: it either charges an annual ransom for read-only access to the firm's OWN histori…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 32,
+      "label": "verify:Data-liberation + read-only ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "acfc939c34bb4da17",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296355852,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296480700,
+      "tokens": 34715,
+      "toolCalls": 16,
+      "durationMs": 124848,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Incumbent vendors' own read-only mode (IRIS, etc.)\",\"url\":\"https://www.accountingweb.co.uk/any-answers/accessing-historical-data-when-leaving-iris\",\"note\":\"IRIS gives departing customers ~1 year of free read-only access from which data can be extracted. Built-in alternative that blunts the core wedge; the 'ransom' is mainly an issue past the free window or for raw d…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 33,
+      "label": "verify:AML source-of-funds assessme",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "adc6c7cd8cfb36b64",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296355855,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296501157,
+      "tokens": 37156,
+      "toolCalls": 18,
+      "durationMs": 145300,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Thirdfort\",\"url\":\"https://www.thirdfort.com/product/source-of-funds/\",\"funded\":\"yes — ~$26M raised (Breega, Element Ventures, 13books)\",\"note\":\"UK-native, the category leader for solicitor SoF. May 2026 rebuilt platform adds AI that 'scans, extracts and interprets data used in source of funds analyses', red-flag summaries, key findings, portfolio-wide risk visibilit…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 34,
+      "label": "verify:SEND tribunal appeal pack + ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a5eb7a11723f6d409",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296480704,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "lightly-served",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296647351,
+      "tokens": 38554,
+      "toolCalls": 19,
+      "durationMs": 166647,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Agilisys EHCP Tool\",\"url\":\"https://transform.agilisys.co.uk/agilisys-ehcp-tool/\",\"funded\":\"Yes (large established UK GovTech / public-sector transformation firm)\",\"note\":\"GenAI EHCP drafting/amendment tool ALREADY in 40+ LAs (~27% of 150). Co-designed with SEND teams, section-by-section plan editing, explicitly markets 'reducing tribunals'. Owns the exact buyer rela…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 35,
+      "label": "verify:Planning-constraint due-dili",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ab1cd7cf7936bcee2",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296501163,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296615873,
+      "tokens": 31938,
+      "toolCalls": 14,
+      "durationMs": 114710,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Search Acumen (REI / ForeSite / Data Snapshot)\",\"url\":\"https://www.search-acumen.co.uk/news/search-acumen-launches-rei-the-uks-first-ai-model-trained-to-handle-local-authority-real-estate-search-data/\",\"funded\":\"yes (established property-data tech provider, part of Dye & Durham group)\",\"note\":\"DIRECT competitor. REI is explicitly 'the UK's first AI model trained to …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 36,
+      "label": "verify:Alternative Provision (AP) d",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a0d78605dfcd7e049",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296615877,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "lightly-served",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296725021,
+      "tokens": 34417,
+      "toolCalls": 15,
+      "durationMs": 109144,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"LearnTrek (Huis Technologies Ltd)\",\"url\":\"https://www.learntrek.co.uk/monitor-pupils-in-alternative-provision/\",\"note\":\"CLOSEST competitor. AP-sector platform with per-provider 'compliance checks' area + doc storage + provider logins + QA logging. BUT pupil-progress/attendance-centric; no evidence of automatic DBS/insurance EXPIRY ALERTS or a provider-onboarding due…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 37,
+      "label": "verify:UKVI sponsor-licence ongoing",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "af087e2ddb367504a",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296647354,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296744469,
+      "tokens": 27962,
+      "toolCalls": 11,
+      "durationMs": 97115,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"SponsorPro\",\"url\":\"https://sponsorpro.co.uk/\",\"note\":\"Live, full-scope. Explicitly covers the candidate's supposed gap: 'Reporting Duties Wizard' (absences, role/salary changes, UKVI notifications with deadline tracking), 'Record Keeping Wizard' = Appendix D equivalent, visa expiry alerts (90/60/30/7d), real-time Audit Readiness Score, one-click audit pack across al…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 38,
+      "label": "verify:Ongoing-advice 'fee-for-no-s",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ae7b6c5f063333e56",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296725023,
+      "queuedAt": 1782296355819,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296833946,
+      "tokens": 31581,
+      "toolCalls": 14,
+      "durationMs": 108921,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Recordsure (ReviewAI / Ongoing Advice Reviews)\",\"url\":\"https://recordsure.com/case-review-ai/ongoing-advice-reviews/\",\"note\":\"Direct, dominant competitor. Dedicated 'Ongoing Advice Reviews' product that reconstructs per-client evidence trails, flags missing review periods within practice-management systems, checks evidentiary docs. Claims to have checked 'over one m…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 39,
+      "label": "verify:Priced 'schedule of works' g",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a4a1005679192d8ef",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296744472,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296878869,
+      "tokens": 34618,
+      "toolCalls": 14,
+      "durationMs": 134397,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Cotality Claims Estimate (UK) — formerly CoreLogic/Symbility\",\"url\":\"https://www.cotality.com/uk/products/claims-estimate\",\"note\":\"The actual UK incumbent. Dedicated UK product page; ships an 'independently researched claims construction pricing database' with UK material/labour/regional cost trends for domestic AND commercial building claims; guided Q&A workflows t…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 40,
+      "label": "verify:Pharmacy First threshold for",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ae00f8b61c1b1ddf0",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296833949,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296961998,
+      "tokens": 34959,
+      "toolCalls": 14,
+      "durationMs": 128048,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"PharmOutcomes (Pinnacle / EMIS Health / Optum-UnitedHealth)\",\"url\":\"https://pharmoutcomes.org\",\"note\":\"The dominant NHS-assured consultation recording system. Records Pharmacy First consultations, auto-submits claims to NHSBSA MYS via API, and produces service reports showing claim status that are the canonical reconciliation reference. Already shows real-time activ…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 41,
+      "label": "verify:NHS dental UDA delivery fore",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a296fb0e38cc0a2d4",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296878873,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782296994714,
+      "tokens": 29677,
+      "toolCalls": 14,
+      "durationMs": 115840,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"UDA Pulse\",\"url\":\"https://udapulse.co.uk/\",\"note\":\"FREE. The near-exact product described in this gap. Imports NHSBSA Compass reports (DCS127, DCS129, SD86c, Monthly Superannuation), matches logged entries against NHSBSA claims by date and UDA value, flags discrepancies (missing/late FP17s, incorrect band/contract allocation), tracks FP17 2-month deadlines, surfaces…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 42,
+      "label": "verify:EPR packaging data + RAM rec",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a31a06c9ee0ba78e9",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296962001,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297056758,
+      "tokens": 27358,
+      "toolCalls": 10,
+      "durationMs": 94757,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Packgine\",\"url\":\"https://packgine.ai/epr\",\"note\":\"Startup doing EXACTLY the candidate gap: automated UK RAM assessment workflows, regulator-ready methodology docs, Shopify/Amazon/ERP integrations for automated data pull, compliant report generation. Direct head-on competitor.\",\"funded\":\"unknown (early startup)\"},{\"name\":\"Remedy EPR\",\"url\":\"https://www.remedy-epr.com…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 43,
+      "label": "verify:Retention recovery register ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a3d12ed656d59f000",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782296994718,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297108431,
+      "tokens": 29095,
+      "toolCalls": 12,
+      "durationMs": 113712,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Site Samurai\",\"url\":\"https://www.sitesamurai.co.uk\",\"note\":\"Live UK construction management product. Comparison content explicitly states it generates payment + pay-less notices with statutory s.111 deadline tracking and audit trail (i.e. smash-and-grab protection) plus retention calculations. From £99/mo, unlimited users, 14-day trial. This is essentially the candi…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 44,
+      "label": "verify:Construction takeoff & price",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a7566a28ab8d37bfc",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297056762,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297139213,
+      "tokens": 26009,
+      "toolCalls": 9,
+      "durationMs": 82451,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Kreo Software\",\"url\":\"https://www.kreo.net/\",\"funded\":\"Bootstrapped, ~$2.4M ARR, 22 staff\",\"note\":\"UK-based AI takeoff+estimating. Caddie AI agent auto-reads PDFs, measures, prices. From £25/user/mo. Directly targets contractors/QS incl. smaller firms. This is the exact product the gap describes, already mature in the UK.\"},{\"name\":\"Togal.AI\",\"url\":\"https://www.toga…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 45,
+      "label": "verify:Grid connection queue & mile",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a296d6df8605c6216",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297108434,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "lightly-served",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297266466,
+      "tokens": 35923,
+      "toolCalls": 16,
+      "durationMs": 158031,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"GridUnity\",\"url\":\"https://www.gridunity.com/\",\"funded\":\"yes (well-funded, US VC + utility contracts)\",\"note\":\"Operator/ISO-side interconnection queue platform (PG&E, SCE, Xcel, MISO, SPP). US-focused, sells to utilities not GB developers. Does not track a developer's Gate 2 Appendix Q milestone compliance. Adjacent, not competing.\"},{\"name\":\"Pearl Street Technologie…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 46,
+      "label": "verify:REGO/ROC certificate lifecyc",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a7c81162a8f5739c2",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297139217,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297260876,
+      "tokens": 32295,
+      "toolCalls": 14,
+      "durationMs": 121658,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Drax (Renewable Purchasing)\",\"url\":\"https://energy.drax.com/sell-power/power-purchase-agreements/\",\"funded\":\"Incumbent (FTSE-listed)\",\"note\":\"PPA partner to 2,300+ UK independent generators; acts as Ofgem agent, handles REGO/ROC registration, matching and transfer for generators as a FREE bundled part of the PPA. Partnered with Granular Energy for hourly REGO tracki…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 47,
+      "label": "verify:Solar/wind asset compliance ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a3ee167461b878acf",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297260880,
+      "queuedAt": 1782296355820,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297374775,
+      "tokens": 30834,
+      "toolCalls": 12,
+      "durationMs": 113894,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Power Factors (Greenbyte + 3megawatt + Drive)\",\"url\":\"https://www.powerfactors.com\",\"note\":\"Well-funded global APM/EAM consolidator. 3megawatt BluePoint does contract & compliance management, asset register, event/task management, investor reporting, LD/availability tracking. Directly covers the warranty-evidence + PR/availability + compliance-log gap. Funded (multi…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 48,
+      "label": "verify:AI property inventory report",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a3b93bdc8e92fdc7e",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297266468,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297360572,
+      "tokens": 26548,
+      "toolCalls": 12,
+      "durationMs": 94104,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"iListingAI\",\"url\":\"https://www.ilisting.ai/\",\"note\":\"Directly the candidate pitch. AI listens to spoken observations and auto-maps them to photos; generates 'legally compliant inventories 10x faster', formatted to industry standard and 'ready for TDS adjudication'. Self-described 'UK's leading inventory software'. AI-native, voice-in.\",\"funded\":\"unknown / likely boo…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 49,
+      "label": "verify:Restricted-fund & grant-life",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a0d7713436bc5c1bd",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297360575,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297502889,
+      "tokens": 34546,
+      "toolCalls": 16,
+      "durationMs": 142313,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Plinth\",\"url\":\"https://www.plinth.org.uk/\",\"note\":\"Near-exact match. UK, AI grant management for grant RECIPIENTS (explicitly 'small charities applying for, receiving and managing grants'). Does budget-vs-actual per budget line, deadline tracking/reminders, AI-assisted funder reporting, document storage. 1,500+ charities, 60+ funders, £200m grantmaking managed. FREE…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 50,
+      "label": "verify:In-house customs commodity-c",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "aeb347b7621d6bd29",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297374778,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297448670,
+      "tokens": 26007,
+      "toolCalls": 9,
+      "durationMs": 73892,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"iCustoms (iClassification)\",\"url\":\"https://www.icustoms.ai/\",\"note\":\"London-based, $2.2M seed (Fuel Ventures, ex-HMRC CIO as advisor), HMRC Recognised. Sells the EXACT candidate pitch: AI 10-digit UK code from a description + confidence score + low-confidence human-review flag + audit trail storing date/user/AI suggestion/review notes for HMRC. This is the candidate…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 51,
+      "label": "verify:AML check + inspection-ready",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a3380a620399b7750",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297448675,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297545134,
+      "tokens": 27796,
+      "toolCalls": 10,
+      "durationMs": 96459,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Credas\",\"url\":\"https://credas.com/sectors/aml-checks-for-estate-agents/\",\"note\":\"Leading IDV/AML provider to UK estate/letting sector. Explicit low-cost monthly package for low-volume small agencies, no setup fee. Audit trails for HMRC built in.\",\"funded\":\"yes (established, scaled UK proptech compliance vendor)\"},{\"name\":\"FigsFlow\",\"url\":\"https://figsflow.com/aml-so…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 52,
+      "label": "verify:Service-charge transparency ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a0ccf45d94de56775",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297502892,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297621056,
+      "tokens": 31467,
+      "toolCalls": 14,
+      "durationMs": 118163,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"SCOAP (Service Charge Online Accounting Package) / Cox Hinkins\",\"url\":\"https://blocksonline.co.uk/scoap-accountants-service/\",\"funded\":\"bootstrapped/established (Cox Hinkins 50+ yr firm)\",\"note\":\"THE near-exact incumbent. Purpose-built software that pulls coded transaction data from Blocks Online, has a trained accountant produce TECH 03/11 accounts, auto-uploads th…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 53,
+      "label": "verify:Supplier-rebate tracking & c",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a26e4a69f83602de2",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297545137,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297633184,
+      "tokens": 26972,
+      "toolCalls": 10,
+      "durationMs": 88046,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Enable (DealTrack)\",\"url\":\"https://www.enable.com/supplier-rebates/distribution\",\"funded\":\"Yes — heavily VC-backed (~$120m+ raised, Insight/Norwest); UK-origin from DCS Group\",\"note\":\"Category leader. Explicitly markets buy-side distributor supplier-rebate CLAIM RECOVERY ('4% of margin goes unclaimed', 'look back retroactively and claim missed earnings'). This IS th…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 54,
+      "label": "verify:CQC registration + recurring",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a374dd55956e74923",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297621060,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297718732,
+      "tokens": 29812,
+      "toolCalls": 12,
+      "durationMs": 97671,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"ReporticaAI\",\"url\":\"https://www.reporticaai.co.uk/cqc-registration\",\"note\":\"DIRECT KILLER. Already ships the EXACT candidate wedge: self-serve AI generates 9 CQC registration documents (Statement of Purpose, Quality Statements, Business Plan w/ financials, Specialism Rationale, Registered Manager Application, 12 policies) PLUS a 100+ question interactive CQC mock in…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 55,
+      "label": "verify:Independent-school fee billi",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a86d7de23b158f5dc",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297633187,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297726264,
+      "tokens": 28186,
+      "toolCalls": 10,
+      "durationMs": 93077,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Furlong FeeMaster (Furlong Solutions / SchoolBase)\",\"url\":\"https://furlongschoolbase.co.uk/furlong-feemaster/\",\"note\":\"This IS the proposed wedge. Standalone fee-billing engine explicitly 'compatible with all MIS platforms' + Sage/Xero, handling family invoicing, fee payer rules, discounts/recharges, bursaries, automated reminders, parent payment portal. Owned by Vo…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 56,
+      "label": "verify:Building Assessment Certific",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ae73c631c82adbcaf",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297718735,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297832354,
+      "tokens": 31784,
+      "toolCalls": 12,
+      "durationMs": 113619,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"BB-SCR (Black Boots Technology Ltd)\",\"url\":\"https://bbscr.co.uk/\",\"note\":\"MOST DIRECT COMPETITOR — this IS the candidate idea, already built. AI web app: upload safety case info, get an automated initial assessment against BSR criteria, it flags gaps/missing info and risks, then generates a compliant draft Safety Case Report in editable Word in minutes. ISO 9001/270…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 57,
+      "label": "verify:Failure-to-prevent-fraud 're",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ad0dd3f5526c60f59",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297726268,
+      "queuedAt": 1782296355821,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297863670,
+      "tokens": 36411,
+      "toolCalls": 16,
+      "durationMs": 137401,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Skillcast\",\"url\":\"https://www.skillcast.com/online-training/failure-to-prevent-fraud-ftpf\",\"note\":\"UK GRC/e-learning incumbent. Already ships FTPF training + Policy Hub (distribute policies, track attestation, automated reminders), whistleblowing register, suspicious-activity register, risk assessment. Covers nearly the whole six-principle evidence stack for mid-mar…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 58,
+      "label": "verify:UK CBAM (HMRC) compliance + ",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a780609fcdb9d278a",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297832358,
+      "queuedAt": 1782296355822,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "moderately-served",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297931577,
+      "tokens": 27937,
+      "toolCalls": 11,
+      "durationMs": 99219,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Oportax (incl. CBAMcheck)\",\"url\":\"https://www.oportax.com/\",\"note\":\"NEAR-EXACT MATCH and likely solo/small-team. Purpose-built UK CBAM (HMRC) platform, LIVE for onboarding now, from £200/mo. Does the entire proposed workflow: import purchase/CDS data, multilingual supplier emissions outreach + auto follow-up, embedded emissions calc on verified data, real-time liabi…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 59,
+      "label": "verify:Searchable/mapped Biodiversi",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a132ff0a11a5d7677",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297863674,
+      "queuedAt": 1782296355822,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782297966592,
+      "tokens": 31765,
+      "toolCalls": 14,
+      "durationMs": 102918,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Verna / Mycelia\",\"url\":\"https://verna.earth/mycelia-for-local-authorities\",\"funded\":\"yes — raised $4M (Übermorgen Ventures, NAP, Love Ventures, Concrete Ventures, Climate VC)\",\"note\":\"THE killer competitor. 100+ LPAs paying ~£10k/year; crossed $1M ARR within a year of launch. Explicitly tracks BNG monitoring data, responsibilities and reporting DEADLINES for every c…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 60,
+      "label": "verify:MEES non-compliance targetin",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "ad57c2c87f27000ba",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297931581,
+      "queuedAt": 1782296355822,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "moderately-served",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782298074405,
+      "tokens": 35762,
+      "toolCalls": 18,
+      "durationMs": 142824,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Kamma (Kamma Data)\",\"url\":\"https://www.kammadata.com/how-we-can-help/local-authorities/\",\"funded\":\"Yes — ~£5.2m raised (£1.6m 2020 seed Triple Point; £3.6m 2023, Clean Growth Fund/Triple Point/Pi Labs/Conduit/Kiilto)\",\"note\":\"Direct and most dangerous competitor. Already sells a council-facing data-matching enforcement product that aggregates EPC, council-tax, elect…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 61,
+      "label": "verify:H-CLIC homelessness return v",
+      "phaseIndex": 3,
+      "phaseTitle": "Verify",
+      "agentId": "a20fbd269670cf591",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1782297966595,
+      "queuedAt": 1782296355822,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "crowded",
+      "promptPreview": "THE FOUNDER (optimise findings for this person):\n- 19, UK-based, highly intelligent, obsessive researcher, strong pattern recognition.\n- Can build any software via AI (assume coding is FREE and not the bottleneck).\n- £10k capital, ONE person, no team, no network, no audience, no credentials, no industry contacts.\n- Interests: investing, markets, technology, future trends, infrastructure, defence, …",
+      "lastProgressAt": 1782298050435,
+      "tokens": 25590,
+      "toolCalls": 8,
+      "durationMs": 83840,
+      "resultPreview": "{\"existing_solutions\":[{\"name\":\"Locata Housing Services (LocataPro / HPA2)\",\"url\":\"https://locatahousingservices.org.uk/hpa2-validators-will-cut-down-h-clic-upload-errors/\",\"funded\":\"Established commercial supplier, 120+ LAs\",\"note\":\"H-CLIC half. Major homelessness case-management system used by 120+ local authorities. Has built-in Case Validator and Upload Validator running MHCLG's schematron, pl…"
+    }
+  ],
+  "totalTokens": 2816587,
+  "totalToolCalls": 1238
+}
