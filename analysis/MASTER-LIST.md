@@ -146,15 +146,56 @@ Scores: weighted overall (Round 1) or fmf/novelty/p£1m (Rounds 2-3).
 
 ---
 
-## Part D — Round 3: lateral / emerging / un-thought-of gaps
-*🔄 RUNNING (task wvb2illw0). 30 finders on emerging/second-order/transplant veins → dedup → adversarial novelty verification. Results merge here on completion: survivors, full ranked list, and named kill-list.*
+## Part D — Round 3: lateral / emerging / un-thought-of gaps (verified)
+*30 finders → 101 candidates → 32 distinct gaps → 32 adversarially verified. **10 survived, 22 killed.** Raw: `gap-discovery-r3-raw.json`. All survivors are "MAYBE" (thin-moat / closing-window) — none a durable PURSUE.*
 
-*Veins being hunted: AI-created problems · energy-transition 2nd-order · defence/dual-use · brand-new 2026-27 regulation · demographic 2nd-order · climate adaptation · reshoring · agentic web · digital-ID rails · space/PNT resilience · US/Aus/Canada/Nordic transplant-arbitrage · select-committee & consultation mining · niche association forums · unmet procurement demand · VA/offshore work · enforcement filings · institutional "shadow work" · high-value micro-niches · hated boring monopolies · physical-world+AI · seasonal scrambles · integration glue · paper/PDF-only data · tiny regulated niches · transaction-fraud gaps · abandoned long-tail.*
+### ⚠️ Survivors (10) — ranked
+| Idea | nov | fmf | verdict | Note |
+|---|---|---|---|---|
+| ⚠️ **DUAA Art 22A-D AI-hiring safeguard stack** | 7 | 7 | lightly-served | Live ICO enforcement (16 orgs named); 4-mo-old rule, no tool. White-label to ATS/RPO. Thin moat / closing window |
+| ⚠️ **DMCCA agent-conduct recorder** (AI-agent liability) | 7 | 7 | lightly-served | Most "agentic web" of all; no direct competitor; feature, weak defensibility, latent demand |
+| ⚠️ SME cyber-insurance evidence-pack builder | 6 | 7 | lightly-served | Real recurring pain; weak defensibility; broker channel |
+| ⚠️ Care-funding (deprivation-of-assets) evidence file | 6 | 6 | lightly-served | Untouched, but low-salience future-contingent demand |
+| ⚠️ Bank/fintech account-review response kit | 7 | 6 | lightly-served | One-shot distress purchase, not SaaS |
+| ⚠️ Quote-Truth Guard (bind chatbot promises to live pricing) | 4 | 6 | moderately-served | Commoditising fast (chatbots already sync pricing) |
+| ⚠️ Independent-school VAT partial-exemption + CGS tracker | 5 | 6 | lightly-served | Tiny shrinking TAM (~2,500 schools) |
+| ⚠️ UK dual-use SPIRE self-classification copilot | 4 | 6 | moderately-served | Lenzo is a funded near-exact competitor |
+| ⚠️ Estate-property obligations clock (probate) | 7 | 5 | lightly-served | Feature; one-off bereaved buyers; no repeat |
+| ⚠️ Aesthetics instrument sterilisation traceability | 4 | 5 | lightly-served | 2026 licensing trigger, but Reprolog adaptable |
+
+### ☠️ Killed as crowded/served (22) — incumbents named
+| Idea | Owned by |
+|---|---|
+| ☠️ Counter-drone compliance & incursion logbook | DroneShield, Dedrone, Rohde & Schwarz |
+| ☠️ DEFCON 658 / CSM v4 cyber flow-down (defence SMEs) | NAQ Cyber, CyberSmart, Risk Ledger, MOD SCPS |
+| ☠️ TachoShield — GNSS-jamming defence (transport) | GPSPATRON, infiniDome, Stoneridge |
+| ☠️ UK-exporter forced-labour exposure radar | Exiger, IntegrityNext, Kharon |
+| ☠️ Attorney/Deputy financial record-keeping | Wardly, lpa.co.uk, Monika (Money Carer) |
+| ☠️ Battery-passport provenance collector | Circuland, Battery Trace, NQC |
+| ☠️ Identity-verification deadline orchestrator | Inform Direct, FigsFlow, Capium |
+| ☠️ DCC/CSMv4 evidence-binder autopilot | NAQ Cyber, Theodosian, Logiq DISX |
+| ☠️ CASS 15 safeguarding co-pilot (payments/e-money) | Kani Payments, Aurum, RuleGuard |
+| ☠️ Communal/EV electricity MRP apportionment | Pod Point, Pro EV, ChargeGuru |
+| ☠️ AI income/commission reconciliation for IFAs | AIDA, Contengo, IFA Dataflow |
+| ☠️ Public-money flow / supplier-dependency intel | Tussell, Stotles, Spend Network |
+| ☠️ Answer-once for food & drink SME compliance | Passionfruit ($19.6m), Quorum, AutoRFP |
+| ☠️ Dormant-asset reunification platform | Gretel e-trace, Eisen, RuleGuard |
+| ☠️ Drainage-survey history per property | Drainify, Mina, WinCan VX |
+| ☠️ Heat Network material asset register | Heat Network Compliance (Sorted-IT), Carbonxgen |
+| ☠️ Supplier-assurance answer-once (security Qs) | Conveyor, Vanta, Drata |
+| ☠️ Bureau payroll migration + parallel-run | IRIS Payroll Upgrade Tool, paiyroll |
+| ☠️ Margin-scheme stock book (2nd-hand dealers) | vatmargin.co.uk, VAT Margin tools |
+| ☠️ Death-pathway tracker (funeral directors) | NHSBSA MMC, Eulogica, PlotBox |
+| ☠️ P442 exempt/licensed volume-split reporting | Enosi, renewable.exchange, GridBeyond |
+| ☠️ VLP per-customer asset-registration evidence | Elexon FMAR, Axle Energy, ESG Global |
 
 ---
 
 ## Cross-round meta-lessons (the most valuable output)
-1. **Idea-level white space is essentially gone.** Across 108+ ideas/gaps verified, ~90% of nameable niches already have 2-3 funded/active players. AI made building free for *everyone*.
-2. **The edge has moved** from *finding* an untouched idea → **execution + distribution + founder obsession** in a "served-but-not-well-served" space.
-3. **Founder-fit is the real filter.** The survivor that best matches this founder's genuine obsessions (markets/infra/energy/defence) is **grid/energy-infrastructure** — pursue on fit, not on false novelty.
-4. **Verify before you fall in love.** Every "insane" idea that wasn't verified got killed once searched properly.
+*Across 3 rounds: 78 ranked ideas + 62 bottom-up gaps verified = 140+ opportunities examined.*
+
+1. **There is no undiscovered slam-dunk.** Of 62 verified gaps, 0 earned a clean "PURSUE" — only 13 thin "MAYBE"s survived; the rest were already owned by funded players. AI made building free for *everyone*, so idea-level white space is essentially gone.
+2. **Emerging regulation is the only reliable white space — but it's a *speed-play*, not a moat.** Round 3 (lateral/regulatory) found 3× more survivors than Round 2 (boring verticals), because a 4-month-old rule outruns tooling. But that window closes and the moat is thin → it's a land-grab won by being first + white-labelling to vendors, not a fortress.
+3. **Pre-verification excitement is worthless — every single time.** "Insane" defence/PNT/agentic ideas all died once searched (DroneShield, NAQ Cyber, GPSPATRON, Exiger…). Verify before falling in love.
+4. **The edge has moved** from *finding* an untouched idea → **execution + distribution + speed + founder obsession** in a "served-but-not-well-served" or "just-regulated" space.
+5. **Best current candidates (all speed/fit plays, none durable):** DUAA AI-hiring safeguard stack · DMCCA agent-conduct recorder · grid-connection tracker (Round 2) — the AI/regulatory/infra ones that match this founder's obsessions. Pursue on fit + speed, not on false novelty.
