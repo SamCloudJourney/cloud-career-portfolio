@@ -257,7 +257,8 @@ jobs:
           unzip -l /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg | grep -F '.signature.p7s'
           cp /tmp/cross-runner-root.crt /tmp/cross-runner-release/release-root.crt
           hostname > /tmp/cross-runner-release/producer-host.txt
-          sha256sum /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg | tee /tmp/cross-runner-release/package.sha256
+          (cd /tmp/cross-runner-release && sha256sum Trusted.Package.CrossRunner.1.0.0.nupkg > package.sha256)
+          cat /tmp/cross-runner-release/package.sha256
 
           echo "PRODUCER_POISONED_PACKAGE_SIGNED=CONFIRMED"
           echo "PRODUCER_HOST=$(cat /tmp/cross-runner-release/producer-host.txt)"
@@ -272,12 +273,10 @@ jobs:
     needs: produce
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/dotnet/sdk:10.0
 
     steps:
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
       - uses: actions/download-artifact@v4
         with:
           name: signed-poisoned-nupkg
@@ -289,20 +288,31 @@ jobs:
           set -euo pipefail
           rm -f /tmp/CROSS_RUNNER_CONSUMER_MARKER
 
-          producer_host=$(cat /tmp/incoming-release/producer-host.txt)
-          consumer_host=$(hostname)
-          echo "PRODUCER_HOST=$producer_host"
-          echo "CONSUMER_HOST=$consumer_host"
-          test "$producer_host" != "$consumer_host"
-          echo "SEPARATE_HOSTED_RUNNERS=CONFIRMED"
+          apt-get update -qq
+          apt-get install -y -qq unzip procps >/dev/null
 
-          sha256sum -c /tmp/incoming-release/package.sha256
+          producer_host=$(cat /tmp/incoming-release/producer-host.txt)
+          consumer_container=$(hostname)
+          echo "PRODUCER_HOST=$producer_host"
+          echo "CONSUMER_CONTAINER=$consumer_container"
+
+          test ! -e /tmp/cross-runner-workspace
+          test ! -e /tmp/CROSS_RUNNER_ANALYZER_MARKER
+          test ! -e /tmp/CROSS_RUNNER_CONSUMER_MARKER
+          if pgrep -af VBCSCompiler; then
+            echo "CONSUMER_CONTAINER_VBCSCOMPILER_STATE=UNEXPECTED"
+            exit 1
+          fi
+          echo "CONSUMER_CONTAINER_HAS_NO_PRODUCER_FILESYSTEM_STATE=CONFIRMED"
+          echo "CONSUMER_CONTAINER_HAS_NO_PRODUCER_VBCSCOMPILER=CONFIRMED"
+
+          (cd /tmp/incoming-release && sha256sum -c package.sha256)
           unzip -l /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg | grep -F '.signature.p7s'
           unzip -p /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg \
             buildTransitive/Trusted.Package.CrossRunner.targets | grep -q 'CrossRunnerInjectedTarget'
 
           sdk_base=$(dotnet --info | awk '/Base Path/{print $3; exit}')
-          sudo sh -c "cat /tmp/incoming-release/release-root.crt >> '$sdk_base/trustedroots/codesignctl.pem'"
+          cat /tmp/incoming-release/release-root.crt >> "$sdk_base/trustedroots/codesignctl.pem"
           dotnet nuget verify /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg --all
           echo "FRESH_RUNNER_TRUSTED_SIGNATURE_VERIFICATION=PASS"
 
@@ -331,6 +341,6 @@ jobs:
           test -e /tmp/CROSS_RUNNER_CONSUMER_MARKER
           grep -q 'ATTACKER_CODE_FROM_SIGNED_CROSS_RUNNER_PACKAGE' /tmp/CROSS_RUNNER_CONSUMER_MARKER
 
-          echo "CROSS_MACHINE_SIGNED_PACKAGE_EXECUTION=CONFIRMED"
+          echo "ISOLATED_CONSUMER_SIGNED_PACKAGE_EXECUTION=CONFIRMED"
           echo "NO_PRODUCER_VBCSCOMPILER_ON_CONSUMER=CONFIRMED"
           cat /tmp/CROSS_RUNNER_CONSUMER_MARKER
