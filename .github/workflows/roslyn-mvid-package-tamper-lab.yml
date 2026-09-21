@@ -100,7 +100,7 @@ jobs:
                           const string targetPath = "/tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets";
                           File.WriteAllText(targetPath,
                               "<Project>" +
-                              "<Target Name=\"InjectedSecurityLabTarget\" BeforeTargets=\"BeforeBuild\">" +
+                              "<Target Name=\"InjectedSecurityLabTarget\" BeforeTargets=\"CoreCompile\">" +
                               "<WriteLinesToFile File=\"/tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER\" " +
                               "Lines=\"ATTACKER_CODE_FROM_TAMPERED_TRUSTED_PACKAGE\" Overwrite=\"true\" />" +
                               "</Target>" +
@@ -196,7 +196,7 @@ jobs:
 
           cat > /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets <<'EOF'
           <Project>
-            <Target Name="TrustedHarmlessTarget" BeforeTargets="BeforeBuild">
+            <Target Name="TrustedHarmlessTarget" BeforeTargets="CoreCompile">
               <Message Text="Trusted package target" Importance="Low" />
             </Target>
           </Project>
@@ -248,7 +248,11 @@ jobs:
             </packageSources>
           </configuration>
           EOF
-          dotnet build /tmp/control-consumer/Consumer.csproj -c Release -v:q
+          dotnet restore /tmp/control-consumer/Consumer.csproj -v:q
+          echo "CONTROL_NUGET_IMPORTS:"
+          cat /tmp/control-consumer/obj/Consumer.csproj.nuget.g.targets || true
+          grep -F "Trusted.Package.SecurityLab.targets" /tmp/control-consumer/obj/Consumer.csproj.nuget.g.targets
+          dotnet build /tmp/control-consumer/Consumer.csproj -c Release --no-restore -v:q
           test ! -e /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
           echo "DIFFERENT_MVID_RELEASE_PACKAGE_CONTROL=PASS"
           grep -E 'Begin Analyzer Consistency|MVID|Rejected|analyzer assembly|CompilerServer' /tmp/package-control.log || true
@@ -359,7 +363,13 @@ jobs:
           </configuration>
           EOF
 
-          dotnet build /tmp/attack-consumer/Consumer.csproj -c Release -v:q
+          dotnet restore /tmp/attack-consumer/Consumer.csproj -v:q
+          echo "ATTACK_NUGET_IMPORTS:"
+          cat /tmp/attack-consumer/obj/Consumer.csproj.nuget.g.targets || true
+          grep -F "Trusted.Package.SecurityLab.targets" /tmp/attack-consumer/obj/Consumer.csproj.nuget.g.targets
+          echo "ATTACK_PACKAGE_TARGET:"
+          cat /tmp/attack-packed-targets.xml
+          dotnet build /tmp/attack-consumer/Consumer.csproj -c Release --no-restore -v:n
           test -e /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
           grep -q 'ATTACKER_CODE_FROM_TAMPERED_TRUSTED_PACKAGE' /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
 
