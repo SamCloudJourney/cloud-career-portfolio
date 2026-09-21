@@ -44,7 +44,20 @@ jobs:
           LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
+          major="${TFM#net}"
+          selected=$(dotnet --list-sdks | awk -v p="$major." '$1 ~ ("^" p) { v=$1 } END { print v }')
+          test -n "$selected"
+          cat > /tmp/global.json <<EOF
+          {
+            "sdk": {
+              "version": "$selected",
+              "rollForward": "disable"
+            }
+          }
+          EOF
+          cd /tmp
           echo "SDK_VERSION=$(dotnet --version)"
+          echo "SDK_BASE=$(dotnet --info | grep -m1 'Base Path')"
           rm -rf /tmp/roslyn-supported-fixtures /tmp/reused-supported-workspace
           rm -f /tmp/SUPPORTED_MARKER /tmp/SUPPORTED_CHILD_MARKER /tmp/supported.log
           mkdir -p /tmp/roslyn-supported-fixtures/{trusted,malicious,reader}
