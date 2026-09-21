@@ -259,6 +259,155 @@ jobs:
           }
           EOF
 
+      - name: Add multi-client result integrity proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/Browser/BrowserToolsMultiClientSecurityTests.cs <<'EOF'
+          // Licensed to the .NET Foundation under one or more agreements.
+          // The .NET Foundation licenses this file to you under the MIT license.
+
+          using System.Net.WebSockets;
+          using System.Security.Cryptography;
+          using System.Text;
+          using Microsoft.DotNet.HotReload;
+
+          namespace Microsoft.DotNet.Watch.UnitTests;
+
+          [TestClass]
+          public class BrowserToolsMultiClientSecurityTests
+          {
+              public TestContext TestContext { get; set; } = null!;
+
+              [TestMethod]
+              public async Task LaterUnauthorizedClient_CanMaskLegitimateBrowserApplyFailure()
+              {
+                  using var rsa = RSA.Create(2048);
+                  var keyParameters = rsa.ExportParameters(includePrivateParameters: true);
+                  using var publicProvider = new SharedSecretProvider(keyParameters);
+
+                  using var server = new BrowserRefreshServer(
+                      logger: new TestLogger(),
+                      connectionServerLoggerFactory: _ => new TestLogger(),
+                      connectionAgentLoggerFactory: _ => new TestLogger(),
+                      configureLaunchEnvironment: static (_, _) => { },
+                      dotnetPath: "dotnet",
+                      sessionKeyFactory: () => new SharedSecretProvider(keyParameters),
+                      webSocketConfig: new WebSocketConfig(
+                          port: 0,
+                          securePort: null,
+                          hostName: null,
+                          additionalAllowedOrigins: []),
+                      suppressTimeouts: true);
+
+                  await server.StartAsync(TestContext.CancellationToken);
+                  var epoch = server.ResetUpdates();
+
+                  // Legitimate browser connects first.
+                  using var legitimate = await ConnectAndInitializeAsync(
+                      server.ProviderAddress,
+                      publicProvider.GetPublicKey(),
+                      "http://localhost:5001");
+
+                  // Unauthorized raw client connects later. It needs no pre-existing secret;
+                  // the application-served public key is enough to mint a fresh credential.
+                  using var attacker = await ConnectAndInitializeAsync(
+                      server.ProviderAddress,
+                      publicProvider.GetPublicKey(),
+                      "http://localhost:59999");
+
+                  var batch = new BrowserToolsUpdateBatch(
+                  [
+                      new BrowserToolsManagedCodeUpdate(
+                          Guid.Parse("12345678-1111-2222-3333-444444444444"),
+                          Encoding.UTF8.GetBytes("MULTICLIENT_METADATA"),
+                          Encoding.UTF8.GetBytes("MULTICLIENT_IL"),
+                          Encoding.UTF8.GetBytes("MULTICLIENT_PDB"),
+                          [13])
+                  ]);
+
+                  var applyTask = server.SendManagedCodeUpdateAsync(
+                      epoch,
+                      batch,
+                      _ => new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{\"type\":\"MULTICLIENT_UPDATE\"}")),
+                      TestContext.CancellationToken).AsTask();
+
+                  Assert.Contains("MULTICLIENT_UPDATE", await ReceiveTextAsync(legitimate));
+                  Assert.Contains("MULTICLIENT_UPDATE", await ReceiveTextAsync(attacker));
+
+                  // Real browser reports the truth: update failed.
+                  await legitimate.SendAsync(
+                      Encoding.UTF8.GetBytes("{\"success\":false,\"log\":[{\"message\":\"LEGITIMATE_BROWSER_APPLY_FAILED\",\"severity\":2}]}"),
+                      WebSocketMessageType.Text,
+                      true,
+                      TestContext.CancellationToken);
+
+                  // Later unauthorized connection lies and says the same update succeeded.
+                  await attacker.SendAsync(
+                      Encoding.UTF8.GetBytes("{\"success\":true,\"log\":[]}"),
+                      WebSocketMessageType.Text,
+                      true,
+                      TestContext.CancellationToken);
+
+                  Assert.IsTrue(await applyTask);
+
+                  Console.WriteLine("LEGITIMATE_BROWSER_REPORTED_FAILURE=YES");
+                  Console.WriteLine("LATER_UNAUTHORIZED_CLIENT_REPORTED_SUCCESS=YES");
+                  Console.WriteLine("UNAUTHORIZED_CLIENT_MASKED_LEGITIMATE_FAILURE=CONFIRMED");
+                  Console.WriteLine("DOTNET_WATCH_FINAL_APPLY_RESULT=SUCCESS");
+
+                  legitimate.Abort();
+                  attacker.Abort();
+              }
+
+              private async Task<ClientWebSocket> ConnectAndInitializeAsync(Uri baseAddress, string publicKey, string origin)
+              {
+                  var socket = new ClientWebSocket();
+                  socket.Options.SetRequestHeader("Origin", origin);
+
+                  var secret = RandomNumberGenerator.GetBytes(32);
+                  using var rsa = RSA.Create();
+                  rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
+                  var encrypted = Convert.ToBase64String(rsa.Encrypt(secret, RSAEncryptionPadding.OaepSHA256));
+                  socket.Options.AddSubProtocol(Uri.EscapeDataString(encrypted));
+
+                  var address = new UriBuilder(baseAddress)
+                  {
+                      Scheme = "ws",
+                      Path = BrowserToolsProtocol.RoutePrefix + BrowserToolsProtocol.ConnectPath
+                  }.Uri;
+
+                  await socket.ConnectAsync(address, TestContext.CancellationToken);
+                  var init = await ReceiveTextAsync(socket);
+                  Assert.Contains("InitializeSession", init);
+
+                  await socket.SendAsync(
+                      Encoding.UTF8.GetBytes("{\"success\":true,\"log\":[]}"),
+                      WebSocketMessageType.Text,
+                      true,
+                      TestContext.CancellationToken);
+
+                  return socket;
+              }
+
+              private async Task<string> ReceiveTextAsync(ClientWebSocket socket)
+              {
+                  var buffer = new byte[128 * 1024];
+                  using var stream = new MemoryStream();
+                  WebSocketReceiveResult result;
+                  do
+                  {
+                      result = await socket.ReceiveAsync(buffer, TestContext.CancellationToken);
+                      Assert.AreEqual(WebSocketMessageType.Text, result.MessageType);
+                      stream.Write(buffer, 0, result.Count);
+                  }
+                  while (!result.EndOfMessage);
+
+                  return Encoding.UTF8.GetString(stream.ToArray());
+              }
+          }
+          EOF
+
       - name: Add network-facing forwarder origin propagation proof
         shell: bash
         run: |
@@ -389,5 +538,7 @@ jobs:
           dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --list-tests text --no-progress | tee /tmp/dotnet-watch-test-list.txt
           grep -F "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" /tmp/dotnet-watch-test-list.txt
           dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" --no-progress --output Detailed
+
+          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "LaterUnauthorizedClient_CanMaskLegitimateBrowserApplyFailure" --no-progress --output Detailed
 
           dotnet test test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests.csproj -c Release --filter "NetworkFacingApp_ForwardsSpoofedLocalhostOriginAndCredentialUnchanged" --no-progress --output Detailed
