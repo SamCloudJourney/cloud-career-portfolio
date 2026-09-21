@@ -57,7 +57,7 @@ jobs:
           public sealed class CollisionAnalyzer : DiagnosticAnalyzer
           {
               private static readonly DiagnosticDescriptor Rule =
-                  new("LAB001", "Lab", "Lab", "Lab", DiagnosticSeverity.Info, true);
+                  new("LAB001", "Lab", "Trusted analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
 
               public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
                   ImmutableArray.Create(Rule);
@@ -65,6 +65,8 @@ jobs:
               public override void Initialize(AnalysisContext context)
               {
                   context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
               }
           }
           EOF
@@ -81,15 +83,19 @@ jobs:
           public sealed class CollisionAnalyzer : DiagnosticAnalyzer
           {
               private static readonly DiagnosticDescriptor Rule =
-                  new("LAB001", "Lab", "Lab", "Lab", DiagnosticSeverity.Info, true);
+                  new("LAB001", "Lab", "Analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
 
               public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
                   ImmutableArray.Create(Rule);
 
               public override void Initialize(AnalysisContext context)
               {
-                  File.AppendAllText("/tmp/ROSLYN_POISON_MARKER", "MALICIOUS_ANALYZER_EXECUTED\n");
                   context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      File.AppendAllText("/tmp/ROSLYN_POISON_MARKER", "MALICIOUS_ANALYZER_EXECUTED\\n");
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
               }
           }
           EOF
@@ -171,6 +177,8 @@ jobs:
               <TargetFramework>net10.0</TargetFramework>
               <OutputType>Exe</OutputType>
               <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
             </PropertyGroup>
             <ItemGroup>
               <Analyzer Include="/tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll" />
