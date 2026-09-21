@@ -32,6 +32,15 @@ jobs:
           echo "DOTNET_SDK_MAIN_SHA=$(git rev-parse HEAD)"
           git log -1 --oneline
 
+      - name: Install current-main test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          sudo bash /tmp/dotnet-install.sh --runtime dotnet --version 11.0.0-rc.1.26453.118 --install-dir /usr/share/dotnet --no-path
+          sudo bash /tmp/dotnet-install.sh --runtime aspnetcore --version 11.0.0-rc.1.26453.118 --install-dir /usr/share/dotnet --no-path
+          dotnet --list-runtimes | grep '11.0.0-rc.1.26453.118'
+
       - name: Add benign source-level security regression test
         shell: bash
         run: |
