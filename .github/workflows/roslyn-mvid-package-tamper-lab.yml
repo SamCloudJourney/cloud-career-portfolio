@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/roslyn-package-fixtures /tmp/reused-package-workspace /tmp/control-packages /tmp/attack-packages /tmp/control-consumer /tmp/attack-consumer
           rm -f /tmp/ANALYZER_EXECUTION_MARKER /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
-          mkdir -p /tmp/roslyn-package-fixtures/{trusted,malicious,reader}
+          mkdir -p /tmp/roslyn-package-fixtures/{trusted,trusted-rebuild,malicious,reader}
 
           cat > /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
@@ -45,6 +45,7 @@ jobs:
           </Project>
           EOF
           cp /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.csproj
+          cp /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj /tmp/roslyn-package-fixtures/trusted-rebuild/CollisionAnalyzer.csproj
 
           cat > /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
           using System.Collections.Immutable;
@@ -70,6 +71,8 @@ jobs:
               }
           }
           EOF
+
+          cp /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.cs /tmp/roslyn-package-fixtures/trusted-rebuild/CollisionAnalyzer.cs
 
           cat > /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
           using System.Collections.Immutable;
@@ -130,16 +133,23 @@ jobs:
           EOF
 
           dotnet build /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-package-fixtures/trusted-rebuild/CollisionAnalyzer.csproj -c Release -v:q
           dotnet build /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
           dotnet build /tmp/roslyn-package-fixtures/reader/MvidReader.csproj -c Release -v:q
 
           trusted=/tmp/roslyn-package-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          trusted_rebuild=/tmp/roslyn-package-fixtures/trusted-rebuild/bin/Release/net10.0/CollisionAnalyzer.dll
           malicious=/tmp/roslyn-package-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
           reader=/tmp/roslyn-package-fixtures/reader/bin/Release/net10.0/MvidReader.dll
 
           cp "$malicious" /tmp/roslyn-package-fixtures/malicious-unpatched.dll
           th=$(dotnet "$reader" "$trusted")
+          th2=$(dotnet "$reader" "$trusted_rebuild")
           mh=$(dotnet "$reader" "$malicious")
+          test "$th" = "$th2"
+          cmp "$trusted" "$trusted_rebuild"
+          echo "INDEPENDENT_TRUSTED_REBUILD_MVID=$th2"
+          echo "ATTACKER_CAN_PRECOMPUTE_TRUSTED_MVID_FROM_DETERMINISTIC_BUILD=CONFIRMED"
           test "$th" != "$mh"
 
           python3 - "$malicious" "$mh" "$th" <<'PY'
