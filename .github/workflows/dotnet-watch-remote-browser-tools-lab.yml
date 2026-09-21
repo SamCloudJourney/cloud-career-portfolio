@@ -181,7 +181,7 @@ jobs:
                   var liveApplyTask = server.SendManagedCodeUpdateAsync(
                       epoch,
                       liveBatch,
-                      _ => Encoding.UTF8.GetBytes("{\"type\":\"LIVE_MANAGED_UPDATE_SENTINEL_20260921\"}").AsMemory(),
+                      _ => new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{\"type\":\"LIVE_MANAGED_UPDATE_SENTINEL_20260921\"}")),
                       TestContext.CancellationToken).AsTask();
 
                   await Task.Delay(500, TestContext.CancellationToken);
