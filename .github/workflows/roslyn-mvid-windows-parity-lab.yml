@@ -1,0 +1,250 @@
+name: roslyn-mvid-windows-parity-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-mvid-windows-parity-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Reproduce on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'roslyn-win-mvid'
+          $fixtures = Join-Path $root 'fixtures'
+          $trustedDir = Join-Path $fixtures 'trusted'
+          $maliciousDir = Join-Path $fixtures 'malicious'
+          $readerDir = Join-Path $fixtures 'reader'
+          $workspace = Join-Path $root 'workspace'
+          $marker = Join-Path $root 'WINDOWS_STALE_ANALYZER_MARKER.txt'
+          $childMarker = Join-Path $root 'WINDOWS_CHILD_PROCESS_MARKER.txt'
+          $serverLog = Join-Path $root 'server.log'
+
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $trustedDir,$maliciousDir,$readerDir | Out-Null
+          $env:WIN_SECURITY_LAB_ROOT = $root
+
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)\..\Roslyn\bincore\Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content (Join-Path $trustedDir 'CollisionAnalyzer.csproj')
+          Copy-Item (Join-Path $trustedDir 'CollisionAnalyzer.csproj') (Join-Path $maliciousDir 'CollisionAnalyzer.csproj')
+
+          @'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB006", "Lab", "Trusted", "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          '@ | Set-Content (Join-Path $trustedDir 'CollisionAnalyzer.cs')
+
+          @'
+          using System;
+          using System.Collections.Immutable;
+          using System.Diagnostics;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB006", "Lab", "Stale", "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      var root = Environment.GetEnvironmentVariable("WIN_SECURITY_LAB_ROOT")!;
+                      var envValue = Environment.GetEnvironmentVariable("TRUSTED_JOB_ENV_SENTINEL") ?? "<ABSENT>";
+                      var source = string.Join("\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+
+                      File.WriteAllText(
+                          Path.Combine(root, "WINDOWS_STALE_ANALYZER_MARKER.txt"),
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\nENV=" + envValue + "\nSOURCE=" + source);
+
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          var psi = new ProcessStartInfo
+                          {
+                              FileName = "cmd.exe",
+                              UseShellExecute = false
+                          };
+                          psi.ArgumentList.Add("/c");
+                          psi.ArgumentList.Add("echo WINDOWS_STALE_ANALYZER_CHILD>" + Path.Combine(root, "WINDOWS_CHILD_PROCESS_MARKER.txt"));
+                          Process.Start(psi)!.WaitForExit();
+                      }
+
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          '@ | Set-Content (Join-Path $maliciousDir 'CollisionAnalyzer.cs')
+
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+            </PropertyGroup>
+          </Project>
+          '@ | Set-Content (Join-Path $readerDir 'MvidReader.csproj')
+
+          @'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+
+          using var stream = File.OpenRead(args[0]);
+          using var pe = new PEReader(stream);
+          var md = pe.GetMetadataReader();
+          var mvid = md.GetGuid(md.GetModuleDefinition().Mvid);
+          Console.WriteLine(Convert.ToHexString(mvid.ToByteArray()));
+          '@ | Set-Content (Join-Path $readerDir 'Program.cs')
+
+          dotnet build (Join-Path $trustedDir 'CollisionAnalyzer.csproj') -c Release -v:q
+          dotnet build (Join-Path $maliciousDir 'CollisionAnalyzer.csproj') -c Release -v:q
+          dotnet build (Join-Path $readerDir 'MvidReader.csproj') -c Release -v:q
+
+          $trusted = Join-Path $trustedDir 'bin\Release\net10.0\CollisionAnalyzer.dll'
+          $malicious = Join-Path $maliciousDir 'bin\Release\net10.0\CollisionAnalyzer.dll'
+          $reader = Join-Path $readerDir 'bin\Release\net10.0\MvidReader.dll'
+          $trustedMvid = (dotnet $reader $trusted).Trim()
+          $maliciousMvid = (dotnet $reader $malicious).Trim()
+          if ($trustedMvid -eq $maliciousMvid) { throw 'fixture MVIDs unexpectedly equal before patch' }
+
+          python -c "from pathlib import Path; import sys; p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3]); b=bytearray(p.read_bytes()); assert b.count(old)==1; i=b.index(old); b[i:i+16]=new; p.write_bytes(b)" $malicious $maliciousMvid $trustedMvid
+
+          $patchedMvid = (dotnet $reader $malicious).Trim()
+          if ($patchedMvid -ne $trustedMvid) { throw 'MVID patch failed' }
+
+          Write-Host "WINDOWS_TRUSTED_MVID=$trustedMvid"
+          Write-Host "WINDOWS_ORIGINAL_ATTACKER_MVID=$maliciousMvid"
+          Write-Host "WINDOWS_PATCHED_ATTACKER_MVID=$patchedMvid"
+          Get-FileHash $trusted -Algorithm SHA256
+          Get-FileHash $malicious -Algorithm SHA256
+
+          dotnet build-server shutdown | Out-Null
+          Remove-Item $workspace -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $marker,$childMarker,$serverLog -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path (Join-Path $workspace 'tools') | Out-Null
+          Copy-Item $malicious (Join-Path $workspace 'tools\CollisionAnalyzer.dll')
+
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)\tools\CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content (Join-Path $workspace 'App.csproj')
+          'System.Console.WriteLine("UNTRUSTED_WINDOWS_CHECKOUT");' | Set-Content (Join-Path $workspace 'Program.cs')
+
+          Remove-Item Env:TRUSTED_JOB_ENV_SENTINEL -ErrorAction SilentlyContinue
+          $env:RoslynCommandLineLogFile = $serverLog
+          dotnet build (Join-Path $workspace 'App.csproj') -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+
+          if (Test-Path $marker) { throw 'analyzer executed during poison build' }
+          Write-Host 'WINDOWS_POISON_STAGE_ANALYZER_EXECUTION=BLOCKED'
+
+          Remove-Item $workspace -Recurse -Force
+          if (Test-Path $workspace) { throw 'workspace removal failed' }
+          Write-Host 'WINDOWS_POISON_WORKSPACE_FULLY_REMOVED=YES'
+
+          New-Item -ItemType Directory -Force -Path (Join-Path $workspace 'tools') | Out-Null
+          Copy-Item $trusted (Join-Path $workspace 'tools\CollisionAnalyzer.dll')
+          $env:TRUSTED_JOB_ENV_SENTINEL = 'WINDOWS_TRUSTED_ENV_CREATED_AFTER_POISON_20260921'
+
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)\tools\CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content (Join-Path $workspace 'App.csproj')
+          'System.Console.WriteLine("WINDOWS_TRUSTED_LATER_SOURCE");' | Set-Content (Join-Path $workspace 'Program.cs')
+
+          $trustedOnDisk = Join-Path $workspace 'tools\CollisionAnalyzer.dll'
+          if ((Get-FileHash $trustedOnDisk -Algorithm SHA256).Hash -ne (Get-FileHash $trusted -Algorithm SHA256).Hash) {
+              throw 'trusted analyzer on disk is not pristine'
+          }
+          Write-Host 'WINDOWS_TRUSTED_ANALYZER_ON_DISK=PRISTINE'
+
+          dotnet build (Join-Path $workspace 'App.csproj') -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          if (-not (Test-Path $marker)) { throw 'stale analyzer marker missing' }
+          if (-not (Test-Path $childMarker)) { throw 'child-process marker missing' }
+
+          $markerText = Get-Content $marker -Raw
+          if ($markerText -notmatch 'ASSEMBLY=Trusted') { throw 'trusted compilation not observed' }
+          if ($markerText -notmatch 'WINDOWS_TRUSTED_ENV_CREATED_AFTER_POISON_20260921') { throw 'trusted env value not observed' }
+          if ($markerText -notmatch 'WINDOWS_TRUSTED_LATER_SOURCE') { throw 'trusted source not observed' }
+
+          Write-Host 'WINDOWS_MVID_CROSS_JOB_BYPASS=CONFIRMED'
+          Write-Host 'WINDOWS_TRUSTED_ENVIRONMENT_READ=CONFIRMED'
+          Write-Host 'WINDOWS_TRUSTED_SOURCE_READ=CONFIRMED'
+          Write-Host 'WINDOWS_TRUSTED_CHILD_PROCESS_EXECUTION=CONFIRMED'
+          Write-Host 'WINDOWS_SERVER_REUSE_EVIDENCE:'
+          Select-String -Path $serverLog -Pattern 'ID=VBCSCompiler .*Begin Analyzer Consistency' | ForEach-Object { $_.Line }
