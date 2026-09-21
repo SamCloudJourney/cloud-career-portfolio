@@ -72,6 +72,7 @@ jobs:
           EOF
 
           cat > /tmp/roslyn-mvid-lab/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System;
           using System.Collections.Immutable;
           using System.IO;
           using Microsoft.CodeAnalysis;
@@ -93,7 +94,8 @@ jobs:
                   context.EnableConcurrentExecution();
                   context.RegisterCompilationAction(static ctx =>
                   {
-                      File.AppendAllText("/tmp/ROSLYN_POISON_MARKER", "MALICIOUS_ANALYZER_EXECUTED\\n");
+                      var secret = Environment.GetEnvironmentVariable("TRUSTED_ONLY_SECRET") ?? "<unset>";
+                      File.AppendAllText("/tmp/ROSLYN_POISON_MARKER", $"MALICIOUS_ANALYZER_EXECUTED SECRET={secret}\\n");
                       ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
                   });
               }
@@ -211,6 +213,7 @@ jobs:
           set -euo pipefail
           dotnet build-server shutdown >/dev/null 2>&1 || true
           rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-control.log
+          unset TRUSTED_ONLY_SECRET || true
           cp /tmp/roslyn-mvid-lab/malicious-unpatched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
           export RoslynCommandLineLogFile=/tmp/roslyn-control.log
 
@@ -235,6 +238,7 @@ jobs:
           set -euo pipefail
           dotnet build-server shutdown >/dev/null 2>&1 || true
           rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-attack.log
+          unset TRUSTED_ONLY_SECRET || true
           cp /tmp/roslyn-mvid-lab/malicious-patched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
           export RoslynCommandLineLogFile=/tmp/roslyn-attack.log
 
@@ -244,6 +248,10 @@ jobs:
 
           rm -f /tmp/ROSLYN_POISON_MARKER
           cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          cmp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          echo "ATTACK_ON_DISK_TRUSTED_DLL=BYTE_IDENTICAL"
+          sha256sum /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export TRUSTED_ONLY_SECRET="TRUSTED_SECRET_SENTINEL_20260921"
           dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
 
           if ! test -e /tmp/ROSLYN_POISON_MARKER; then
@@ -254,5 +262,7 @@ jobs:
           echo "MVID_COLLISION_CROSS_BUILD_EXECUTION=CONFIRMED"
           echo "MARKER_CONTENT:"
           cat /tmp/ROSLYN_POISON_MARKER
+          grep -q "TRUSTED_SECRET_SENTINEL_20260921" /tmp/ROSLYN_POISON_MARKER
+          echo "LATER_TRUSTED_SECRET_READ_BY_STALE_ATTACKER_CODE=CONFIRMED"
           echo "ATTACK_LOG_SECURITY_LINES:"
           grep -E "MVID|analyzer assembly|Rejected" /tmp/roslyn-attack.log || true
