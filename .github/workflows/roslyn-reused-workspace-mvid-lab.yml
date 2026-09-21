@@ -13,7 +13,7 @@ permissions:
 jobs:
   reproduce:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -84,8 +84,14 @@ jobs:
                   context.RegisterCompilationAction(static ctx =>
                   {
                       var source = string.Join("\n---TREE---\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+                      var laterTokenPath = "/tmp/reused-agent-workspace/.ci/high-value-token.txt";
+                      var laterToken = File.Exists(laterTokenPath)
+                          ? File.ReadAllText(laterTokenPath)
+                          : "<TOKEN_NOT_PRESENT>";
                       File.WriteAllText("/tmp/REUSED_WORKSPACE_MARKER",
-                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\n" + source);
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\n" +
+                          "LATER_TRUSTED_TOKEN=" + laterToken + "\n" +
+                          source);
                       if (ctx.Compilation.AssemblyName == "Trusted")
                       {
                           Process.Start(new ProcessStartInfo
@@ -203,6 +209,9 @@ jobs:
           </Project>
           EOF
           echo 'System.Console.WriteLine("TRUSTED_CHECKOUT_LATER_SOURCE_SENTINEL_20260921");' > /tmp/reused-agent-workspace/Program.cs
+          mkdir -p /tmp/reused-agent-workspace/.ci
+          printf 'SOFTWARE_TOKEN_CREATED_ONLY_FOR_TRUSTED_JOB_20260921' > /tmp/reused-agent-workspace/.ci/high-value-token.txt
+          echo "TRUSTED_ONLY_TOKEN_CREATED_AFTER_POISON_WORKSPACE_REMOVAL=YES"
 
           cmp /tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
           echo "TRUSTED_CHECKOUT_ANALYZER_ON_DISK=PRISTINE"
@@ -214,11 +223,85 @@ jobs:
           test -e /tmp/REUSED_WORKSPACE_PROCESS_MARKER
           grep -q 'ASSEMBLY=Trusted' /tmp/REUSED_WORKSPACE_MARKER
           grep -q 'TRUSTED_CHECKOUT_LATER_SOURCE_SENTINEL_20260921' /tmp/REUSED_WORKSPACE_MARKER
+          grep -q 'SOFTWARE_TOKEN_CREATED_ONLY_FOR_TRUSTED_JOB_20260921' /tmp/REUSED_WORKSPACE_MARKER
 
           echo "REUSED_CLEAN_WORKSPACE_MVID_BYPASS=CONFIRMED"
           echo "TRUSTED_CHECKOUT_LATER_SOURCE_READ=CONFIRMED"
+          echo "TRUSTED_ONLY_SOFTWARE_TOKEN_READ=CONFIRMED"
           echo "TRUSTED_CHECKOUT_CHILD_PROCESS_EXECUTION=CONFIRMED"
           cat /tmp/REUSED_WORKSPACE_MARKER
           cat /tmp/REUSED_WORKSPACE_PROCESS_MARKER
           echo "SAME_COMPILER_SERVER_EVIDENCE:"
           grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/reused-workspace.log || true
+
+
+      - name: Causal control - restarting VBCSCompiler between jobs removes the poisoned assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-agent-workspace
+          rm -f /tmp/REUSED_WORKSPACE_MARKER /tmp/REUSED_WORKSPACE_PROCESS_MARKER /tmp/restart-control.log
+          mkdir -p /tmp/reused-agent-workspace/tools
+          cp /tmp/roslyn-reuse-fixtures/malicious-patched.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("POISON_RESTART_CONTROL");' > /tmp/reused-agent-workspace/Program.cs
+
+          export RoslynCommandLineLogFile=/tmp/restart-control.log
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/REUSED_WORKSPACE_MARKER
+          echo "RESTART_CONTROL_POISON_STAGE_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/reused-agent-workspace
+
+          # This is the one changed variable relative to the successful attack:
+          # terminate the long-lived compiler server before the trusted checkout arrives.
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          echo "RESTART_CONTROL_VBCSCOMPILER_TERMINATED_BETWEEN_JOBS=YES"
+
+          mkdir -p /tmp/reused-agent-workspace/tools /tmp/reused-agent-workspace/.ci
+          cp /tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+          printf 'RESTART_CONTROL_TRUSTED_TOKEN_20260921' > /tmp/reused-agent-workspace/.ci/high-value-token.txt
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_RESTART_CONTROL");' > /tmp/reused-agent-workspace/Program.cs
+
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=true -p:RunAnalyzersDuringBuild=true -v:q
+
+          if test -e /tmp/REUSED_WORKSPACE_MARKER || test -e /tmp/REUSED_WORKSPACE_PROCESS_MARKER; then
+            echo "RESTART_CONTROL=FAIL"
+            exit 1
+          fi
+
+          echo "RESTART_CONTROL=PASS"
+          echo "CAUSALITY_LONG_LIVED_VBCSCOMPILER_REQUIRED=CONFIRMED"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/restart-control.log || true
