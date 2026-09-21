@@ -124,10 +124,10 @@ jobs:
 
           grep -n "SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision"             src/Compilers/Server/VBCSCompilerTests/AnalyzerConsistencyCheckerTests.cs
 
-      - name: Run only the current-main security regression
+      - name: Run current-main security regression
         shell: bash
-        working-directory: /tmp/roslyn-current-main
         run: |
           set -euo pipefail
+          cd /tmp/roslyn-current-main
           dotnet --info
-          dotnet test src/Compilers/Server/VBCSCompilerTests/VBCSCompiler.UnitTests.csproj             -f net10.0             --filter "FullyQualifiedName~AnalyzerConsistencyCheckerTests.SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision"             --logger "console;verbosity=normal"
+          dotnet test src/Compilers/Server/VBCSCompilerTests/VBCSCompiler.UnitTests.csproj -f net10.0 --filter "FullyQualifiedName~AnalyzerConsistencyCheckerTests.SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision" --logger "console;verbosity=normal"
