@@ -6,6 +6,7 @@ on:
       - dotnet-bounty-lab-20260921
     paths:
       - .github/workflows/roslyn-current-main-regression-lab.yml
+      - labs/patch_roslyn_current_main_regression.py
 
 permissions:
   contents: read
@@ -20,11 +21,9 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            10.0.x
-            11.0.100-rc.1.26425.128
+          dotnet-version: '11.0.100-rc.1.26425.128'
 
-      - name: Clone current Roslyn main and add missing regression
+      - name: Clone current Roslyn main
         shell: bash
         run: |
           set -euo pipefail
@@ -34,100 +33,16 @@ jobs:
           echo "ROSLYN_CURRENT_MAIN_SHA=$(git rev-parse HEAD)"
           git log -1 --oneline
 
-          python3 - <<'PY'
-          from pathlib import Path
+      - name: Inject same-MVID different-content regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/labs/patch_roslyn_current_main_regression.py" /tmp/roslyn-current-main
+          grep -n "SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision" /tmp/roslyn-current-main/src/Compilers/Server/VBCSCompilerTests/AnalyzerConsistencyCheckerTests.cs
 
-          p = Path("/tmp/roslyn-current-main/src/Compilers/Server/VBCSCompilerTests/AnalyzerConsistencyCheckerTests.cs")
-          s = p.read_text(encoding="utf-8-sig")
-
-          marker = """
-        /// <summary>
-        /// A differing MVID is okay when it's loading a DLL from the compiler directory.
-          """
-
-          test = r'''
-        [Fact]
-        public void SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision()
-        {
-            var directory = Temp.CreateDirectory();
-            var assemblyLoader = AnalyzerAssemblyLoader.CreateNonLockingLoader(directory.CreateDirectory("resolver").Path);
-
-            var key = NetStandard20.References.netstandard.GetAssemblyIdentity().PublicKey;
-            var analyzer = CreateNetStandardDll(
-                directory,
-                "MvidCollision",
-                "1.0.0.0",
-                key,
-                "public static class Marker { public const string Value = \"TRUSTED\"; }");
-
-            var analyzerReferences = ImmutableArray.Create(
-                new CommandLineAnalyzerReference(analyzer.Path));
-
-            var firstResult = AnalyzerConsistencyChecker.Check(
-                directory.Path,
-                analyzerReferences,
-                assemblyLoader,
-                Logger);
-
-            Assert.True(firstResult);
-
-            var originalMvid = AssemblyUtilities.ReadMvid(analyzer.Path);
-            var originalBytes = File.ReadAllBytes(analyzer.Path);
-            var originalHash = Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(originalBytes));
-
-            // Change the file content without changing PE metadata or MVID.
-            // The CLR accepts trailing bytes, so the assembly remains loadable.
-            using (var stream = new FileStream(analyzer.Path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
-            {
-                stream.Write(Encoding.UTF8.GetBytes("ATTACKER_CONTROLLED_DIFFERENT_CONTENT_20260921"));
-            }
-
-            var changedMvid = AssemblyUtilities.ReadMvid(analyzer.Path);
-            var changedBytes = File.ReadAllBytes(analyzer.Path);
-            var changedHash = Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(changedBytes));
-
-            Assert.Equal(originalMvid, changedMvid);
-            Assert.NotEqual(originalHash, changedHash);
-            Assert.True(changedBytes.Length > originalBytes.Length);
-
-            var secondResult = AnalyzerConsistencyChecker.Check(
-                directory.Path,
-                analyzerReferences,
-                assemblyLoader,
-                Logger,
-                out List<string>? errorMessages);
-
-            Console.WriteLine($"CURRENT_MAIN_ORIGINAL_MVID={originalMvid}");
-            Console.WriteLine($"CURRENT_MAIN_CHANGED_MVID={changedMvid}");
-            Console.WriteLine($"CURRENT_MAIN_ORIGINAL_SHA256={originalHash}");
-            Console.WriteLine($"CURRENT_MAIN_CHANGED_SHA256={changedHash}");
-            Console.WriteLine($"CURRENT_MAIN_MVID_EQUAL={originalMvid == changedMvid}");
-            Console.WriteLine($"CURRENT_MAIN_CONTENT_HASH_DIFFERENT={originalHash != changedHash}");
-            Console.WriteLine($"CURRENT_MAIN_CHECK_RESULT={secondResult}");
-
-            // This assertion documents current vulnerable behavior.
-            Assert.True(secondResult);
-            Assert.Null(errorMessages);
-        }
-
-'''
-          if "SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision" in s:
-              raise SystemExit("test already exists unexpectedly")
-          if marker not in s:
-              raise SystemExit("insertion marker not found")
-
-          s = s.replace(marker, test + marker)
-          p.write_text(s, encoding="utf-8")
-          PY
-
-          grep -n "SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision"             src/Compilers/Server/VBCSCompilerTests/AnalyzerConsistencyCheckerTests.cs
-
-      - name: Run current-main security regression
+      - name: Run current-main regression
         shell: bash
         run: |
           set -euo pipefail
           cd /tmp/roslyn-current-main
-          dotnet --info
           dotnet test src/Compilers/Server/VBCSCompilerTests/VBCSCompiler.UnitTests.csproj -f net10.0 --filter "FullyQualifiedName~AnalyzerConsistencyCheckerTests.SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision" --logger "console;verbosity=normal"
