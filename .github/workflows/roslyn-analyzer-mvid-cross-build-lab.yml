@@ -268,3 +268,59 @@ jobs:
           echo "LATER_CONTEXT_FILE_READ_BY_STALE_ANALYZER=CONFIRMED"
           echo "ATTACK_LOG_SECURITY_LINES:"
           grep -E "MVID|analyzer assembly|Rejected" /tmp/roslyn-attack.log || true
+
+      - name: Strong control - disabled analyzers plus different MVID do not cross into trusted build
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-disabled-control.log
+          cp /tmp/roslyn-mvid-lab/malicious-unpatched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/roslyn-disabled-control.log
+
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          if test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "DISABLED_CONTROL_POISON_BUILD_EXECUTION=FAIL"
+            exit 1
+          fi
+          echo "DISABLED_CONTROL_POISON_BUILD_EXECUTION=BLOCKED"
+
+          cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=true -p:RunAnalyzersDuringBuild=true -v:q
+
+          if test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "DISABLED_CONTROL_MVID_GUARD=FAIL"
+            exit 1
+          fi
+          echo "DISABLED_CONTROL_MVID_GUARD=PASS"
+          grep -E "MVID|analyzer assembly|Rejected|Begin Analyzer Consistency" /tmp/roslyn-disabled-control.log || true
+
+      - name: Strong attack - disabled analyzers still preload same-MVID malicious assembly into later trusted build
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-disabled-attack.log
+          cp /tmp/roslyn-mvid-lab/malicious-patched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/roslyn-disabled-attack.log
+
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          if test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "ANALYZERS_DISABLED_POISON_STAGE_EXECUTED=YES"
+            exit 1
+          fi
+          echo "ANALYZERS_DISABLED_POISON_STAGE_EXECUTED=NO"
+
+          cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=true -p:RunAnalyzersDuringBuild=true -v:q
+
+          if ! test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "ANALYZER_DISABLE_MVID_CROSS_BUILD_BYPASS=NOT_REPRODUCED"
+            grep -E "MVID|analyzer assembly|Rejected|Begin Analyzer Consistency" /tmp/roslyn-disabled-attack.log || true
+            exit 1
+          fi
+          echo "ANALYZER_DISABLE_MVID_CROSS_BUILD_BYPASS=CONFIRMED"
+          echo "DISABLED_ATTACK_MARKER:"
+          cat /tmp/ROSLYN_POISON_MARKER
+          echo "DISABLED_ATTACK_SERVER_IDS:"
+          grep -E "ID=VBCSCompiler .*Begin Analyzer Consistency" /tmp/roslyn-disabled-attack.log || true
