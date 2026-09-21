@@ -178,7 +178,7 @@ jobs:
           </Project>
           EOF
           cat > /tmp/roslyn-mvid-lab/victim/Program.cs <<'EOF'
-          Console.WriteLine("victim");
+          System.Console.WriteLine("victim");
           EOF
           dotnet restore /tmp/roslyn-mvid-lab/victim/Victim.csproj -v:q
 
