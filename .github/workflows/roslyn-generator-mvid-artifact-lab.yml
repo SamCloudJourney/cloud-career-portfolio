@@ -185,13 +185,36 @@ jobs:
           </Project>
           EOF
           echo 'System.Console.WriteLine("TRUSTED_CONTROL");' > /tmp/reused-release-workspace/Program.cs
-          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild \
+            -p:UseSharedCompilation=true \
+            -p:EmitCompilerGeneratedFiles=true \
+            -p:CompilerGeneratedFilesOutputPath=/tmp/control-generated -v:q
+
+          if test -e /tmp/GENERATOR_EXECUTION_MARKER; then
+            echo "DIFFERENT_MVID_STALE_GENERATOR_EXECUTED_DURING_TRUSTED_BUILD=YES"
+            echo "GENERATOR_EXECUTION_MARKER_CONTENT=$(cat /tmp/GENERATOR_EXECUTION_MARKER)"
+          else
+            echo "DIFFERENT_MVID_STALE_GENERATOR_EXECUTED_DURING_TRUSTED_BUILD=NO"
+          fi
+
+          echo "DIFFERENT_MVID_GENERATED_FILES:"
+          find /tmp/control-generated -type f -maxdepth 8 -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+
+          echo "DIFFERENT_MVID_SECURITY_LOG_LINES:"
+          grep -E 'Begin Analyzer Consistency|End Analyzer Consistency|MVID|Rejected|analyzer assembly|CompilerServer' /tmp/generator-control.log || true
+
+          # Remove the live compiler server before running the output so a runtime marker can only
+          # come from code already compiled into the trusted artifact.
           dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/PERSISTENT_ARTIFACT_MARKER
           dotnet /tmp/reused-release-workspace/bin/Release/net10.0/Trusted.dll
 
-          test ! -e /tmp/PERSISTENT_ARTIFACT_MARKER
-          echo "DIFFERENT_MVID_ARTIFACT_CONTROL=PASS"
-          grep -E 'MVID|Rejected|ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/generator-control.log || true
+          if test -e /tmp/PERSISTENT_ARTIFACT_MARKER; then
+            echo "DIFFERENT_MVID_PERSISTENT_ARTIFACT_INJECTION=CONFIRMED"
+            cat /tmp/PERSISTENT_ARTIFACT_MARKER
+          else
+            echo "DIFFERENT_MVID_ARTIFACT_CONTROL=PASS"
+          fi
 
       - name: Attack - same-MVID stale generator injects persistent code into later trusted artifact
         shell: bash
@@ -254,7 +277,12 @@ jobs:
           cmp /tmp/roslyn-generator-fixtures/trusted/bin/Release/net10.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
           echo "TRUSTED_GENERATOR_ON_DISK_BEFORE_RELEASE_BUILD=PRISTINE"
 
-          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild \
+            -p:UseSharedCompilation=true \
+            -p:EmitCompilerGeneratedFiles=true \
+            -p:CompilerGeneratedFilesOutputPath=/tmp/attack-generated -v:q
+          echo "SAME_MVID_GENERATED_FILES:"
+          find /tmp/attack-generated -type f -maxdepth 8 -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
           test -e /tmp/GENERATOR_EXECUTION_MARKER
           grep -q '^Trusted$' /tmp/GENERATOR_EXECUTION_MARKER
           echo "STALE_ATTACKER_GENERATOR_EXECUTED_DURING_TRUSTED_RELEASE_BUILD=CONFIRMED"
