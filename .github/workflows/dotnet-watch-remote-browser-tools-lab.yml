@@ -66,6 +66,7 @@ jobs:
           // Licensed to the .NET Foundation under one or more agreements.
           // The .NET Foundation licenses this file to you under the MIT license.
 
+          using System.Linq;
           using System.Net;
           using System.Net.WebSockets;
           using System.Security.Cryptography;
@@ -86,10 +87,11 @@ jobs:
                   var keyParameters = rsa.ExportParameters(includePrivateParameters: true);
                   using var publicKeyProvider = new SharedSecretProvider(keyParameters);
 
+                  var agentLogger = new TestLogger();
                   using var server = new BrowserRefreshServer(
                       logger: new TestLogger(),
                       connectionServerLoggerFactory: _ => new TestLogger(),
-                      connectionAgentLoggerFactory: _ => new TestLogger(),
+                      connectionAgentLoggerFactory: _ => agentLogger,
                       configureLaunchEnvironment: static (_, _) => { },
                       dotnetPath: "dotnet",
                       sessionKeyFactory: () => new SharedSecretProvider(keyParameters),
@@ -163,9 +165,51 @@ jobs:
                   Console.WriteLine("REMOTE_CLIENT_RETAINED_IL_DELTA=DISCLOSED");
                   Console.WriteLine("REMOTE_CLIENT_RETAINED_PDB_DELTA=DISCLOSED");
 
+                  // A connected client that withholds the initialization acknowledgement blocks
+                  // later live Hot Reload delivery because every exchange waits on Initialized.
+                  const string liveSentinel = "LIVE_MANAGED_UPDATE_SENTINEL_20260921";
+                  var liveBatch = new BrowserToolsUpdateBatch(
+                  [
+                      new BrowserToolsManagedCodeUpdate(
+                          Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_METADATA"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_IL"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_PDB"),
+                          [11])
+                  ]);
+
+                  var liveApplyTask = server.SendManagedCodeUpdateAsync(
+                      epoch,
+                      liveBatch,
+                      _ => Encoding.UTF8.GetBytes("{\"type\":\"LIVE_MANAGED_UPDATE_SENTINEL_20260921\"}").AsMemory(),
+                      TestContext.CancellationToken).AsTask();
+
+                  await Task.Delay(500, TestContext.CancellationToken);
+                  Assert.IsFalse(liveApplyTask.IsCompleted);
+                  Console.WriteLine("REMOTE_CLIENT_WITHHELD_INIT_ACK_STALLS_LIVE_UPDATE=CONFIRMED");
+
+                  // Release the initialization gate, receive the live update, then lie about the
+                  // result and inject a diagnostic log entry into dotnet-watch.
                   var ack = Encoding.UTF8.GetBytes("{\"success\":true,\"log\":[]}");
                   await socket.SendAsync(ack, WebSocketMessageType.Text, true, TestContext.CancellationToken);
-                  await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", TestContext.CancellationToken);
+
+                  var liveMessage = await ReceiveTextAsync(socket, TestContext.CancellationToken);
+                  Assert.Contains(liveSentinel, liveMessage);
+                  Console.WriteLine("REMOTE_CLIENT_LIVE_MANAGED_UPDATE=DISCLOSED");
+
+                  const string attackerLog = "ATTACKER_CONTROLLED_AGENT_LOG_SENTINEL_20260921";
+                  var failure = Encoding.UTF8.GetBytes(
+                      "{\"success\":false,\"log\":[{\"message\":\"" + attackerLog + "\",\"severity\":2}]}");
+                  await socket.SendAsync(failure, WebSocketMessageType.Text, true, TestContext.CancellationToken);
+
+                  Assert.IsFalse(await liveApplyTask);
+                  Assert.IsTrue(agentLogger.GetAndClearMessages().Any(m => m.Contains(attackerLog, StringComparison.Ordinal)));
+                  Console.WriteLine("REMOTE_CLIENT_CAN_FORCE_UPDATE_FAILURE=CONFIRMED");
+                  Console.WriteLine("REMOTE_CLIENT_CAN_INJECT_AGENT_LOG=CONFIRMED");
+
+                  // Abort instead of graceful close: the product handler does not continuously read
+                  // after initialization, so a close handshake would wait for another server receive.
+                  socket.Abort();
               }
 
               private async Task<HttpStatusCode> TryRejectedConnectAsync(Uri baseAddress, string origin, string subProtocol)
