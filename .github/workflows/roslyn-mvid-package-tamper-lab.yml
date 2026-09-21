@@ -345,19 +345,48 @@ jobs:
           # trusted release package has already been produced. This models a downstream
           # release-signing stage that the attacker never had access to.
           openssl req -x509 -newkey rsa:2048 \
-            -keyout /tmp/trusted-release-signing.key \
-            -out /tmp/trusted-release-signing.crt \
+            -keyout /tmp/trusted-release-root.key \
+            -out /tmp/trusted-release-root.crt \
             -sha256 -days 1 -nodes \
-            -subj "/CN=Trusted Release Security Lab" \
-            -addext "keyUsage=digitalSignature" \
-            -addext "extendedKeyUsage=codeSigning" >/dev/null 2>&1
+            -subj "/CN=Trusted Release Security Lab Root" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
+
+          openssl req -newkey rsa:2048 \
+            -keyout /tmp/trusted-release-signing.key \
+            -out /tmp/trusted-release-signing.csr \
+            -nodes -subj "/CN=Trusted Release Security Lab Signer" >/dev/null 2>&1
+
+          cat > /tmp/trusted-release-signing.ext <<'EOF'
+          basicConstraints=critical,CA:FALSE
+          keyUsage=critical,digitalSignature
+          extendedKeyUsage=codeSigning
+          subjectKeyIdentifier=hash
+          authorityKeyIdentifier=keyid,issuer
+          EOF
+
+          openssl x509 -req \
+            -in /tmp/trusted-release-signing.csr \
+            -CA /tmp/trusted-release-root.crt \
+            -CAkey /tmp/trusted-release-root.key \
+            -CAcreateserial \
+            -out /tmp/trusted-release-signing.crt \
+            -days 1 -sha256 \
+            -extfile /tmp/trusted-release-signing.ext >/dev/null 2>&1
+
           openssl pkcs12 -export \
             -out /tmp/trusted-release-signing.pfx \
             -inkey /tmp/trusted-release-signing.key \
             -in /tmp/trusted-release-signing.crt \
+            -certfile /tmp/trusted-release-root.crt \
             -passout pass:securitylab >/dev/null 2>&1
-          chmod 600 /tmp/trusted-release-signing.key /tmp/trusted-release-signing.pfx
+
+          chmod 600 /tmp/trusted-release-root.key /tmp/trusted-release-signing.key /tmp/trusted-release-signing.pfx
+          sdk_base=$(dotnet --info | awk '/Base Path/{print $3; exit}')
+          test -f "$sdk_base/trustedroots/codesignctl.pem"
+          sudo sh -c "cat /tmp/trusted-release-root.crt >> '$sdk_base/trustedroots/codesignctl.pem'"
           echo "TRUSTED_SIGNING_KEY_CREATED_ONLY_AFTER_POISON_STAGE=YES"
+          echo "DISPOSABLE_RELEASE_CA_TRUSTED_ONLY_INSIDE_TEST_RUNNER=YES"
 
           dotnet nuget sign /tmp/attack-packages/Trusted.Package.SecurityLab.2.0.0.nupkg \
             --certificate-path /tmp/trusted-release-signing.pfx \
