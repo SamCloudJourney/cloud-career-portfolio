@@ -311,7 +311,7 @@ jobs:
               <TargetFramework>net10.0</TargetFramework>
               <AssemblyName>TrustedPackage</AssemblyName>
               <PackageId>Trusted.Package.SecurityLab</PackageId>
-              <Version>1.0.0</Version>
+              <Version>2.0.0</Version>
               <UseSharedCompilation>true</UseSharedCompilation>
               <RunAnalyzers>true</RunAnalyzers>
               <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
@@ -337,7 +337,7 @@ jobs:
           grep -q 'InjectedSecurityLabTarget' /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
           echo "STALE_ANALYZER_TAMPERED_TRUSTED_RELEASE_INPUT=CONFIRMED"
 
-          unzip -p /tmp/attack-packages/Trusted.Package.SecurityLab.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/attack-packed-targets.xml
+          unzip -p /tmp/attack-packages/Trusted.Package.SecurityLab.2.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/attack-packed-targets.xml
           grep -q 'InjectedSecurityLabTarget' /tmp/attack-packed-targets.xml
           echo "TAMPERED_BUILD_TARGET_PERSISTED_IN_NUPKG=CONFIRMED"
 
@@ -350,7 +350,7 @@ jobs:
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Trusted.Package.SecurityLab" Version="1.0.0" />
+              <PackageReference Include="Trusted.Package.SecurityLab" Version="2.0.0" />
             </ItemGroup>
           </Project>
           EOF
