@@ -55,8 +55,8 @@ jobs:
           s = s.replace(
               '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" ExcludeAssets="Runtime" />',
               '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" />')
-          marker = '  <ItemGroup>\n    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting.Combinatorial" />\n  </ItemGroup>'
-          s = s.replace(marker, marker + '\n  <ItemGroup>\n    <Compile Remove="TestUtilities/MSBuildFixture.cs" />\n  </ItemGroup>')
+          if 'Compile Remove="TestUtilities/MSBuildFixture.cs"' not in s:
+              s = s.replace('</Project>', '  <ItemGroup>\n    <Compile Remove="TestUtilities/MSBuildFixture.cs" />\n  </ItemGroup>\n</Project>')
           p.write_text(s)
           PY
           grep -n -E 'dotnet-watch.csproj|MSBuildFixture' /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/dotnet-watch.Tests.csproj
