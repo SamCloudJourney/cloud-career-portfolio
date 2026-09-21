@@ -1,0 +1,396 @@
+name: dotnet-watch-release11-backport-security-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/dotnet-watch-release11-backport-security-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDK required by dotnet/sdk current main
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+
+      - name: Checkout active release/11.0.1xx backport head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/dotnet-sdk-security-lab
+          git clone --filter=blob:none --no-checkout https://github.com/dotnet/sdk.git /tmp/dotnet-sdk-security-lab
+          cd /tmp/dotnet-sdk-security-lab
+          git fetch --depth 1 origin 3a79db797434d4fbe6313299901aab0d8a120abf
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "3a79db797434d4fbe6313299901aab0d8a120abf"
+          echo "DOTNET_SDK_RELEASE11_BACKPORT_SHA=$(git rev-parse HEAD)"
+          git log -1 --oneline
+
+      - name: Install current-main test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          sudo bash /tmp/dotnet-install.sh --runtime dotnet --version 11.0.0-rc.2.26465.108 --install-dir /usr/share/dotnet --no-path
+          sudo bash /tmp/dotnet-install.sh --runtime aspnetcore --version 11.0.0-rc.2.26465.108 --install-dir /usr/share/dotnet --no-path
+          dotnet --list-runtimes | grep '11.0.0-rc.2.26465.108'
+
+      - name: Trim unrelated SDK test bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("/tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/dotnet-watch.Tests.csproj")
+          s = p.read_text()
+          s = s.replace(
+              '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" ExcludeAssets="Runtime" />',
+              '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" />')
+          marker = '  <ItemGroup>\n    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting.Combinatorial" />\n  </ItemGroup>'
+          s = s.replace(marker, marker + '\n  <ItemGroup>\n    <Compile Remove="TestUtilities/MSBuildFixture.cs" />\n  </ItemGroup>')
+          p.write_text(s)
+          PY
+          grep -n -E 'dotnet-watch.csproj|MSBuildFixture' /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/dotnet-watch.Tests.csproj
+
+      - name: Add benign source-level security regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/Browser/BrowserToolsRemoteClientSecurityTests.cs <<'EOF'
+          // Licensed to the .NET Foundation under one or more agreements.
+          // The .NET Foundation licenses this file to you under the MIT license.
+
+          using System.Linq;
+          using System.Net;
+          using System.Net.WebSockets;
+          using System.Security.Cryptography;
+          using System.Text;
+          using Microsoft.DotNet.HotReload;
+
+          namespace Microsoft.DotNet.Watch.UnitTests;
+
+          [TestClass]
+          public class BrowserToolsRemoteClientSecurityTests
+          {
+              public TestContext TestContext { get; set; } = null!;
+
+              [TestMethod]
+              public async Task SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta()
+              {
+                  using var rsa = RSA.Create(2048);
+                  var keyParameters = rsa.ExportParameters(includePrivateParameters: true);
+                  using var publicKeyProvider = new SharedSecretProvider(keyParameters);
+
+                  var agentLogger = new TestLogger();
+                  using var server = new BrowserRefreshServer(
+                      logger: new TestLogger(),
+                      connectionServerLoggerFactory: _ => new TestLogger(),
+                      connectionAgentLoggerFactory: _ => agentLogger,
+                      configureLaunchEnvironment: static (_, _) => { },
+                      dotnetPath: "dotnet",
+                      sessionKeyFactory: () => new SharedSecretProvider(keyParameters),
+                      webSocketConfig: new WebSocketConfig(
+                          port: 0,
+                          securePort: null,
+                          hostName: null,
+                          additionalAllowedOrigins: []),
+                      suppressTimeouts: true);
+
+                  await server.StartAsync(TestContext.CancellationToken);
+
+                  // Simulate an update produced before any browser/client has connected.
+                  // The provider intentionally retains it for replay to the next accepted client.
+                  const string metadataSentinel = "PRIVATE_METADATA_DELTA_SENTINEL_20260921";
+                  const string ilSentinel = "PRIVATE_IL_DELTA_SENTINEL_20260921";
+                  const string pdbSentinel = "PRIVATE_PDB_DELTA_SENTINEL_20260921";
+
+                  var epoch = server.ResetUpdates();
+                  var batch = new BrowserToolsUpdateBatch(
+                  [
+                      new BrowserToolsManagedCodeUpdate(
+                          Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                          Encoding.UTF8.GetBytes(metadataSentinel),
+                          Encoding.UTF8.GetBytes(ilSentinel),
+                          Encoding.UTF8.GetBytes(pdbSentinel),
+                          [7, 9])
+                  ]);
+
+                  Assert.IsTrue(await server.SendManagedCodeUpdateAsync(
+                      epoch,
+                      batch,
+                      static _ => ReadOnlyMemory<byte>.Empty,
+                      TestContext.CancellationToken));
+
+                  // A non-browser attacker can obtain the public key from the build-generated
+                  // BrowserTools.Config.js asset. A public key is sufficient to mint a fresh
+                  // encrypted WebSocket subprotocol; no pre-existing session secret is required.
+                  var attackerSecret = RandomNumberGenerator.GetBytes(32);
+                  var subProtocol = ToSubProtocol(EncryptSecret(publicKeyProvider.GetPublicKey(), attackerSecret));
+
+                  // The actual Origin guard rejects a non-local hostname.
+                  Assert.AreEqual(
+                      HttpStatusCode.Forbidden,
+                      await TryRejectedConnectAsync(server.ProviderAddress, "http://evil.example:45678", subProtocol));
+
+                  // But it authorizes only originUri.Host, so a raw network client can spoof
+                  // localhost with any scheme/port even though it did not originate from the app.
+                  using var socket = new ClientWebSocket();
+                  socket.Options.SetRequestHeader("Origin", "http://localhost:45678");
+                  socket.Options.AddSubProtocol(subProtocol);
+
+                  var connectUri = new UriBuilder(server.ProviderAddress)
+                  {
+                      Scheme = "ws",
+                      Path = BrowserToolsProtocol.RoutePrefix + BrowserToolsProtocol.ConnectPath
+                  }.Uri;
+
+                  await socket.ConnectAsync(connectUri, TestContext.CancellationToken);
+                  Assert.AreEqual(WebSocketState.Open, socket.State);
+
+                  var message = await ReceiveTextAsync(socket, TestContext.CancellationToken);
+
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(metadataSentinel)), message);
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(ilSentinel)), message);
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(pdbSentinel)), message);
+
+                  Console.WriteLine("REMOTE_CLIENT_PUBLIC_KEY_CREDENTIAL=CONFIRMED");
+                  Console.WriteLine("REMOTE_CLIENT_SPOOFED_LOCALHOST_ORIGIN=ACCEPTED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_METADATA_DELTA=DISCLOSED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_IL_DELTA=DISCLOSED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_PDB_DELTA=DISCLOSED");
+
+                  // A connected client that withholds the initialization acknowledgement blocks
+                  // later live Hot Reload delivery because every exchange waits on Initialized.
+                  const string liveSentinel = "LIVE_MANAGED_UPDATE_SENTINEL_20260921";
+                  var liveBatch = new BrowserToolsUpdateBatch(
+                  [
+                      new BrowserToolsManagedCodeUpdate(
+                          Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_METADATA"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_IL"),
+                          Encoding.UTF8.GetBytes(liveSentinel + "_PDB"),
+                          [11])
+                  ]);
+
+                  var liveApplyTask = server.SendManagedCodeUpdateAsync(
+                      epoch,
+                      liveBatch,
+                      _ => new ReadOnlyMemory<byte>(Encoding.UTF8.GetBytes("{\"type\":\"LIVE_MANAGED_UPDATE_SENTINEL_20260921\"}")),
+                      TestContext.CancellationToken).AsTask();
+
+                  await Task.Delay(500, TestContext.CancellationToken);
+                  Assert.IsFalse(liveApplyTask.IsCompleted);
+                  Console.WriteLine("REMOTE_CLIENT_WITHHELD_INIT_ACK_STALLS_LIVE_UPDATE=CONFIRMED");
+
+                  // Release the initialization gate, receive the live update, then lie about the
+                  // result and inject a diagnostic log entry into dotnet-watch.
+                  var ack = Encoding.UTF8.GetBytes("{\"success\":true,\"log\":[]}");
+                  await socket.SendAsync(ack, WebSocketMessageType.Text, true, TestContext.CancellationToken);
+
+                  var liveMessage = await ReceiveTextAsync(socket, TestContext.CancellationToken);
+                  Assert.Contains(liveSentinel, liveMessage);
+                  Console.WriteLine("REMOTE_CLIENT_LIVE_MANAGED_UPDATE=DISCLOSED");
+
+                  const string attackerLog = "ATTACKER_CONTROLLED_AGENT_LOG_SENTINEL_20260921";
+                  var failure = Encoding.UTF8.GetBytes(
+                      "{\"success\":false,\"log\":[{\"message\":\"" + attackerLog + "\",\"severity\":2}]}");
+                  await socket.SendAsync(failure, WebSocketMessageType.Text, true, TestContext.CancellationToken);
+
+                  Assert.IsFalse(await liveApplyTask);
+                  Assert.IsTrue(agentLogger.GetAndClearMessages().Any(m => m.Contains(attackerLog, StringComparison.Ordinal)));
+                  Console.WriteLine("REMOTE_CLIENT_CAN_FORCE_UPDATE_FAILURE=CONFIRMED");
+                  Console.WriteLine("REMOTE_CLIENT_CAN_INJECT_AGENT_LOG=CONFIRMED");
+
+                  // Abort instead of graceful close: the product handler does not continuously read
+                  // after initialization, so a close handshake would wait for another server receive.
+                  socket.Abort();
+              }
+
+              private async Task<HttpStatusCode> TryRejectedConnectAsync(Uri baseAddress, string origin, string subProtocol)
+              {
+                  using var socket = new ClientWebSocket();
+                  socket.Options.CollectHttpResponseDetails = true;
+                  socket.Options.SetRequestHeader("Origin", origin);
+                  socket.Options.AddSubProtocol(subProtocol);
+
+                  var address = new UriBuilder(baseAddress)
+                  {
+                      Scheme = "ws",
+                      Path = BrowserToolsProtocol.RoutePrefix + BrowserToolsProtocol.ConnectPath
+                  }.Uri;
+
+                  await Assert.ThrowsExactlyAsync<WebSocketException>(
+                      () => socket.ConnectAsync(address, TestContext.CancellationToken));
+                  return socket.HttpStatusCode;
+              }
+
+              private static string EncryptSecret(string publicKey, byte[] secret)
+              {
+                  using var rsa = RSA.Create();
+                  rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
+                  return Convert.ToBase64String(rsa.Encrypt(secret, RSAEncryptionPadding.OaepSHA256));
+              }
+
+              private static string ToSubProtocol(string encryptedSecret)
+                  => Uri.EscapeDataString(encryptedSecret);
+
+              private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+              {
+                  var buffer = new byte[256 * 1024];
+                  using var stream = new MemoryStream();
+
+                  WebSocketReceiveResult result;
+                  do
+                  {
+                      result = await socket.ReceiveAsync(buffer, cancellationToken);
+                      Assert.AreEqual(WebSocketMessageType.Text, result.MessageType);
+                      stream.Write(buffer, 0, result.Count);
+                  }
+                  while (!result.EndOfMessage);
+
+                  return Encoding.UTF8.GetString(stream.ToArray());
+              }
+          }
+          EOF
+
+      - name: Add network-facing forwarder origin propagation proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/dotnet-sdk-security-lab/test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/BrowserToolsForwarderOriginSecurityTests.cs <<'EOF'
+          // Licensed to the .NET Foundation under one or more agreements.
+          // The .NET Foundation licenses this file to you under the MIT license.
+
+          using System.Net.WebSockets;
+          using Microsoft.AspNetCore.Builder;
+          using Microsoft.AspNetCore.Hosting;
+          using Microsoft.AspNetCore.Hosting.Server;
+          using Microsoft.AspNetCore.Hosting.Server.Features;
+          using Microsoft.AspNetCore.Http;
+          using Microsoft.Extensions.DependencyInjection;
+          using Microsoft.Extensions.Logging.Abstractions;
+
+          namespace Microsoft.AspNetCore.Watch.BrowserRefresh;
+
+          [TestClass]
+          public class BrowserToolsForwarderOriginSecurityTests
+          {
+              public TestContext TestContext { get; set; } = null!;
+
+              [TestMethod]
+              public async Task NetworkFacingApp_ForwardsSpoofedLocalhostOriginAndCredentialUnchanged()
+              {
+                  var observed = new TaskCompletionSource<(string Origin, string Protocol)>(
+                      TaskCreationOptions.RunContinuationsAsynchronously);
+
+                  await using var provider = await StartApplicationAsync(
+                      "http://127.0.0.1:0",
+                      async context =>
+                      {
+                          if (!context.WebSockets.IsWebSocketRequest)
+                          {
+                              context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                              return;
+                          }
+
+                          var protocol = context.WebSockets.WebSocketRequestedProtocols.Single();
+                          var origin = context.Request.Headers.Origin.ToString();
+                          using var socket = await context.WebSockets.AcceptWebSocketAsync(protocol);
+                          observed.TrySetResult((origin, protocol));
+                          socket.Abort();
+                      });
+
+                  using var forwarder = new BrowserToolsForwarder(
+                      GetAddress(provider),
+                      NullLogger<BrowserToolsForwarder>.Instance);
+
+                  await using var networkFacingApp = await StartApplicationAsync(
+                      "http://0.0.0.0:0",
+                      async context =>
+                      {
+                          if (context.Request.Path.StartsWithSegments(ApplicationPaths.BrowserTools))
+                          {
+                              await forwarder.ForwardAsync(context);
+                              return;
+                          }
+
+                          context.Response.StatusCode = StatusCodes.Status404NotFound;
+                      });
+
+                  using var attacker = new ClientWebSocket();
+                  const string spoofedOrigin = "http://localhost:45678";
+                  const string attackerCredential = "attacker-minted-public-key-ciphertext";
+                  attacker.Options.SetRequestHeader("Origin", spoofedOrigin);
+                  attacker.Options.AddSubProtocol(attackerCredential);
+
+                  var exposed = GetAddress(networkFacingApp);
+                  var target = new UriBuilder(exposed)
+                  {
+                      Host = "127.0.0.1",
+                      Scheme = "ws",
+                      Path = "/_framework/dotnet-browser-tools/connect"
+                  }.Uri;
+
+                  try
+                  {
+                      await attacker.ConnectAsync(target, TestContext.CancellationToken);
+                  }
+                  catch (WebSocketException)
+                  {
+                      // The mock provider aborts immediately after observing the forwarded handshake.
+                      // Whether the downstream close wins the race is irrelevant to header propagation.
+                  }
+
+                  var observation = await observed.Task.WaitAsync(TestContext.CancellationToken);
+                  Assert.AreEqual(spoofedOrigin, observation.Origin);
+                  Assert.AreEqual(attackerCredential, observation.Protocol);
+
+                  Console.WriteLine("NETWORK_FACING_APP_ROUTE=CONFIRMED");
+                  Console.WriteLine("FORWARDER_SPOOFED_LOCALHOST_ORIGIN_PRESERVED=CONFIRMED");
+                  Console.WriteLine("FORWARDER_ATTACKER_CREDENTIAL_PRESERVED=CONFIRMED");
+              }
+
+              private static async Task<WebApplication> StartApplicationAsync(string url, RequestDelegate handler)
+              {
+                  var builder = WebApplication.CreateBuilder();
+                  builder.WebHost.UseKestrel().UseUrls(url);
+                  var app = builder.Build();
+                  app.UseWebSockets();
+                  app.Run(handler);
+                  await app.StartAsync();
+                  return app;
+              }
+
+              private static Uri GetAddress(WebApplication app)
+              {
+                  var address = app.Services
+                      .GetRequiredService<IServer>()
+                      .Features
+                      .Get<IServerAddressesFeature>()!
+                      .Addresses
+                      .Single();
+                  return new Uri(address);
+              }
+          }
+          EOF
+
+      - name: Run security regressions against release/11.0.1xx backport
+        shell: bash
+        working-directory: /tmp/dotnet-sdk-security-lab
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --list-tests text --no-progress | tee /tmp/dotnet-watch-test-list.txt
+          grep -F "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" /tmp/dotnet-watch-test-list.txt
+          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" --no-progress --output Detailed
+
+          dotnet test test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests.csproj -c Release --filter "NetworkFacingApp_ForwardsSpoofedLocalhostOriginAndCredentialUnchanged" --no-progress --output Detailed
