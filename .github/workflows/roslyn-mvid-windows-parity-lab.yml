@@ -102,12 +102,13 @@ jobs:
                   context.RegisterCompilationAction(static ctx =>
                   {
                       var root = Environment.GetEnvironmentVariable("WIN_SECURITY_LAB_ROOT")!;
-                      var envValue = Environment.GetEnvironmentVariable("TRUSTED_JOB_ENV_SENTINEL") ?? "<ABSENT>";
+                      var tokenPath = Path.Combine(root, "workspace", ".ci", "trusted-token.txt");
+                      var token = File.Exists(tokenPath) ? File.ReadAllText(tokenPath) : "<ABSENT>";
                       var source = string.Join("\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
 
                       File.WriteAllText(
                           Path.Combine(root, "WINDOWS_STALE_ANALYZER_MARKER.txt"),
-                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\nENV=" + envValue + "\nSOURCE=" + source);
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\nTOKEN=" + token + "\nSOURCE=" + source);
 
                       if (ctx.Compilation.AssemblyName == "Trusted")
                       {
@@ -194,7 +195,6 @@ jobs:
           '@ | Set-Content (Join-Path $workspace 'App.csproj')
           'System.Console.WriteLine("UNTRUSTED_WINDOWS_CHECKOUT");' | Set-Content (Join-Path $workspace 'Program.cs')
 
-          Remove-Item Env:TRUSTED_JOB_ENV_SENTINEL -ErrorAction SilentlyContinue
           $env:RoslynCommandLineLogFile = $serverLog
           dotnet build (Join-Path $workspace 'App.csproj') -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
 
@@ -205,9 +205,10 @@ jobs:
           if (Test-Path $workspace) { throw 'workspace removal failed' }
           Write-Host 'WINDOWS_POISON_WORKSPACE_FULLY_REMOVED=YES'
 
-          New-Item -ItemType Directory -Force -Path (Join-Path $workspace 'tools') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $workspace 'tools'),(Join-Path $workspace '.ci') | Out-Null
           Copy-Item $trusted (Join-Path $workspace 'tools\CollisionAnalyzer.dll')
-          $env:TRUSTED_JOB_ENV_SENTINEL = 'WINDOWS_TRUSTED_ENV_CREATED_AFTER_POISON_20260921'
+          'WINDOWS_TRUSTED_TOKEN_CREATED_AFTER_POISON_20260921' | Set-Content (Join-Path $workspace '.ci\trusted-token.txt')
+          Write-Host 'WINDOWS_TRUSTED_ONLY_TOKEN_CREATED_AFTER_POISON=YES'
 
           @'
           <Project Sdk="Microsoft.NET.Sdk">
@@ -239,11 +240,11 @@ jobs:
 
           $markerText = Get-Content $marker -Raw
           if ($markerText -notmatch 'ASSEMBLY=Trusted') { throw 'trusted compilation not observed' }
-          if ($markerText -notmatch 'WINDOWS_TRUSTED_ENV_CREATED_AFTER_POISON_20260921') { throw 'trusted env value not observed' }
+          if ($markerText -notmatch 'WINDOWS_TRUSTED_TOKEN_CREATED_AFTER_POISON_20260921') { throw 'trusted token value not observed' }
           if ($markerText -notmatch 'WINDOWS_TRUSTED_LATER_SOURCE') { throw 'trusted source not observed' }
 
           Write-Host 'WINDOWS_MVID_CROSS_JOB_BYPASS=CONFIRMED'
-          Write-Host 'WINDOWS_TRUSTED_ENVIRONMENT_READ=CONFIRMED'
+          Write-Host 'WINDOWS_TRUSTED_ONLY_TOKEN_READ=CONFIRMED'
           Write-Host 'WINDOWS_TRUSTED_SOURCE_READ=CONFIRMED'
           Write-Host 'WINDOWS_TRUSTED_CHILD_PROCESS_EXECUTION=CONFIRMED'
           Write-Host 'WINDOWS_SERVER_REUSE_EVIDENCE:'
