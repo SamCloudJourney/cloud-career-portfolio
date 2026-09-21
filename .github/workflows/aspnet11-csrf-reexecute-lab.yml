@@ -41,10 +41,10 @@ jobs:
 
           cat > /tmp/aspnet11-csrf-reexecute/Program.cs <<'EOF'
           using System.Net;
-          using Microsoft.AspNetCore.Antiforgery;
           using Microsoft.AspNetCore.Builder;
           using Microsoft.AspNetCore.Hosting;
           using Microsoft.AspNetCore.Http;
+          using Microsoft.AspNetCore.Mvc;
           using Microsoft.Extensions.Hosting;
 
           var builder = WebApplication.CreateBuilder(args);
@@ -59,12 +59,11 @@ jobs:
               return Task.CompletedTask;
           }).DisableAntiforgery();
 
-          app.MapPost("/protected-reroute", async (HttpContext ctx) =>
+          app.MapPost("/protected-reroute", ([FromForm] string action) =>
           {
-              File.WriteAllText("/tmp/CSRF_REEXEC_MARKER", "PROTECTED_STATE_CHANGE_EXECUTED");
-              ctx.Response.StatusCode = StatusCodes.Status200OK;
-              await ctx.Response.WriteAsync("protected action executed");
-          }).WithMetadata(new RequireAntiforgeryTokenAttribute());
+              File.WriteAllText("/tmp/CSRF_REEXEC_MARKER", "PROTECTED_STATE_CHANGE_EXECUTED:" + action);
+              return Results.Ok("protected action executed");
+          });
 
           await app.StartAsync();
 
@@ -72,7 +71,13 @@ jobs:
 
           static HttpRequestMessage CrossSitePost(string path)
           {
-              var req = new HttpRequestMessage(HttpMethod.Post, path);
+              var req = new HttpRequestMessage(HttpMethod.Post, path)
+              {
+                  Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                  {
+                      ["action"] = "STATE_CHANGE_SENTINEL"
+                  })
+              };
               req.Headers.Add("Sec-Fetch-Site", "cross-site");
               req.Headers.Add("Origin", "https://evil.example.com");
               return req;
