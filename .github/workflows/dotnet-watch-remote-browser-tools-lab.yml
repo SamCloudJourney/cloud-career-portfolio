@@ -41,6 +41,23 @@ jobs:
           sudo bash /tmp/dotnet-install.sh --runtime aspnetcore --version 11.0.0-rc.1.26453.118 --install-dir /usr/share/dotnet --no-path
           dotnet --list-runtimes | grep '11.0.0-rc.1.26453.118'
 
+      - name: Trim unrelated SDK test bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("/tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/dotnet-watch.Tests.csproj")
+          s = p.read_text()
+          s = s.replace(
+              '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" ExcludeAssets="Runtime" />',
+              '<ProjectReference Include="$(RepoRoot)\\src\\Dotnet.Watch\\dotnet-watch\\dotnet-watch.csproj" />')
+          marker = '  <ItemGroup>\n    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting.Combinatorial" />\n  </ItemGroup>'
+          s = s.replace(marker, marker + '\n  <ItemGroup>\n    <Compile Remove="TestUtilities/MSBuildFixture.cs" />\n  </ItemGroup>')
+          p.write_text(s)
+          PY
+          grep -n -E 'dotnet-watch.csproj|MSBuildFixture' /tmp/dotnet-sdk-security-lab/test/dotnet-watch.Tests/dotnet-watch.Tests.csproj
+
       - name: Add benign source-level security regression test
         shell: bash
         run: |
