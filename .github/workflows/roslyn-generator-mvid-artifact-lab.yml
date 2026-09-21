@@ -83,7 +83,9 @@ jobs:
                   context.AddSource(
                       "InjectedPersistentBackdoor.g.cs",
                       SourceText.From(
-                          "using System.IO;\\nusing System.Runtime.CompilerServices;\\ninternal static class InjectedPersistentBackdoor { [ModuleInitializer] internal static void Run() => File.WriteAllText(\\\"/tmp/PERSISTENT_ARTIFACT_MARKER\\\", \\\"ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT\\\"); }",
+                          "using System.IO;\n" +
+                          "using System.Runtime.CompilerServices;\n" +
+                          "internal static class InjectedPersistentBackdoor { [ModuleInitializer] internal static void Run() => File.WriteAllText(\"/tmp/PERSISTENT_ARTIFACT_MARKER\", \"ATTACKER_GENERATED_CODE_EXECUTED_FROM_TRUSTED_ARTIFACT\"); }",
                           Encoding.UTF8));
               }
           }
@@ -116,6 +118,9 @@ jobs:
 
           th=$(dotnet "$reader" "$trusted")
           mh=$(dotnet "$reader" "$malicious")
+          echo "TRUSTED_GENERATOR_MVID=$th"
+          echo "ORIGINAL_ATTACKER_GENERATOR_MVID=$mh"
+          test "$mh" != "$th"
           python3 - "$malicious" "$mh" "$th" <<'PY'
           from pathlib import Path
           import sys
@@ -127,7 +132,6 @@ jobs:
 
           test "$(dotnet "$reader" "$malicious")" = "$th"
           cp "$malicious" /tmp/roslyn-generator-fixtures/malicious-patched.dll
-          echo "TRUSTED_GENERATOR_MVID=$th"
           echo "PATCHED_ATTACKER_GENERATOR_MVID=$(dotnet "$reader" "$malicious")"
           sha256sum "$trusted" /tmp/roslyn-generator-fixtures/malicious-patched.dll
 
@@ -135,6 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'echo "GENERATOR_CONTROL_SERVER_LOG:"; cat /tmp/generator-control.log 2>/dev/null || true' ERR
           dotnet build-server shutdown >/dev/null 2>&1 || true
           rm -rf /tmp/reused-release-workspace
           rm -f /tmp/GENERATOR_EXECUTION_MARKER /tmp/PERSISTENT_ARTIFACT_MARKER /tmp/generator-control.log
