@@ -208,7 +208,7 @@ jobs:
             <PropertyGroup>
               <TargetFramework>net10.0</TargetFramework>
               <AssemblyName>TrustedPackage</AssemblyName>
-              <PackageId>Trusted.Package.SecurityLab.Control</PackageId>
+              <PackageId>Trusted.Package.SecurityLab</PackageId>
               <Version>1.0.0</Version>
               <UseSharedCompilation>true</UseSharedCompilation>
               <RunAnalyzers>true</RunAnalyzers>
@@ -227,7 +227,7 @@ jobs:
           dotnet pack /tmp/reused-package-workspace/Package.csproj -c Release -o /tmp/control-packages             -p:UseSharedCompilation=true -v:q
 
           cmp /tmp/control-pristine-targets.xml /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
-          unzip -p /tmp/control-packages/Trusted.Package.SecurityLab.Control.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/control-packed-targets.xml
+          unzip -p /tmp/control-packages/Trusted.Package.SecurityLab.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/control-packed-targets.xml
           cmp /tmp/control-pristine-targets.xml /tmp/control-packed-targets.xml
 
           dotnet build-server shutdown >/dev/null 2>&1 || true
@@ -236,7 +236,7 @@ jobs:
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Trusted.Package.SecurityLab.Control" Version="1.0.0" />
+              <PackageReference Include="Trusted.Package.SecurityLab" Version="1.0.0" />
             </ItemGroup>
           </Project>
           EOF
@@ -306,7 +306,7 @@ jobs:
             <PropertyGroup>
               <TargetFramework>net10.0</TargetFramework>
               <AssemblyName>TrustedPackage</AssemblyName>
-              <PackageId>Trusted.Package.SecurityLab.Attack</PackageId>
+              <PackageId>Trusted.Package.SecurityLab</PackageId>
               <Version>1.0.0</Version>
               <UseSharedCompilation>true</UseSharedCompilation>
               <RunAnalyzers>true</RunAnalyzers>
@@ -333,7 +333,7 @@ jobs:
           grep -q 'InjectedSecurityLabTarget' /tmp/reused-package-workspace/buildTransitive/Trusted.Package.SecurityLab.targets
           echo "STALE_ANALYZER_TAMPERED_TRUSTED_RELEASE_INPUT=CONFIRMED"
 
-          unzip -p /tmp/attack-packages/Trusted.Package.SecurityLab.Attack.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/attack-packed-targets.xml
+          unzip -p /tmp/attack-packages/Trusted.Package.SecurityLab.1.0.0.nupkg buildTransitive/Trusted.Package.SecurityLab.targets > /tmp/attack-packed-targets.xml
           grep -q 'InjectedSecurityLabTarget' /tmp/attack-packed-targets.xml
           echo "TAMPERED_BUILD_TARGET_PERSISTED_IN_NUPKG=CONFIRMED"
 
@@ -346,7 +346,7 @@ jobs:
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Trusted.Package.SecurityLab.Attack" Version="1.0.0" />
+              <PackageReference Include="Trusted.Package.SecurityLab" Version="1.0.0" />
             </ItemGroup>
           </Project>
           EOF
