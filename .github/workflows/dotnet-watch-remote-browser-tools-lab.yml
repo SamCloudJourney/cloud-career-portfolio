@@ -222,5 +222,5 @@ jobs:
           set -euo pipefail
           dotnet --info
           dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --list-tests text --no-progress | tee /tmp/dotnet-watch-test-list.txt
-          grep -F "BrowserToolsRemoteClientSecurityTests" /tmp/dotnet-watch-test-list.txt
-          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "BrowserToolsRemoteClientSecurityTests" --no-progress --output Detailed
+          grep -F "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" /tmp/dotnet-watch-test-list.txt
+          dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" --no-progress --output Detailed
