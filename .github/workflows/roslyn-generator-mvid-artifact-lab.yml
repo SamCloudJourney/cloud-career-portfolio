@@ -32,7 +32,7 @@ jobs:
           cat > /tmp/roslyn-generator-fixtures/trusted/CollisionGenerator.csproj <<'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
-              <TargetFramework>netstandard2.0</TargetFramework>
+              <TargetFramework>net10.0</TargetFramework>
               <AssemblyName>CollisionGenerator</AssemblyName>
               <Deterministic>true</Deterministic>
               <DebugType>none</DebugType>
@@ -109,8 +109,8 @@ jobs:
           dotnet build /tmp/roslyn-generator-fixtures/malicious/CollisionGenerator.csproj -c Release -v:q
           dotnet build /tmp/roslyn-generator-fixtures/reader/MvidReader.csproj -c Release -v:q
 
-          trusted=/tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll
-          malicious=/tmp/roslyn-generator-fixtures/malicious/bin/Release/netstandard2.0/CollisionGenerator.dll
+          trusted=/tmp/roslyn-generator-fixtures/trusted/bin/Release/net10.0/CollisionGenerator.dll
+          malicious=/tmp/roslyn-generator-fixtures/malicious/bin/Release/net10.0/CollisionGenerator.dll
           reader=/tmp/roslyn-generator-fixtures/reader/bin/Release/net10.0/MvidReader.dll
           cp "$malicious" /tmp/roslyn-generator-fixtures/malicious-unpatched.dll
 
@@ -163,7 +163,7 @@ jobs:
 
           rm -rf /tmp/reused-release-workspace
           mkdir -p /tmp/reused-release-workspace/tools
-          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/net10.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
           cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
@@ -227,7 +227,7 @@ jobs:
           echo "UNTRUSTED_PR_WORKSPACE_FULLY_REMOVED=YES"
 
           mkdir -p /tmp/reused-release-workspace/tools
-          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+          cp /tmp/roslyn-generator-fixtures/trusted/bin/Release/net10.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
 
           cat > /tmp/reused-release-workspace/App.csproj <<'EOF'
           <Project Sdk="Microsoft.NET.Sdk">
@@ -246,7 +246,7 @@ jobs:
           EOF
           echo 'System.Console.WriteLine("TRUSTED_RELEASE_BUILD");' > /tmp/reused-release-workspace/Program.cs
 
-          cmp /tmp/roslyn-generator-fixtures/trusted/bin/Release/netstandard2.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
+          cmp /tmp/roslyn-generator-fixtures/trusted/bin/Release/net10.0/CollisionGenerator.dll /tmp/reused-release-workspace/tools/CollisionGenerator.dll
           echo "TRUSTED_GENERATOR_ON_DISK_BEFORE_RELEASE_BUILD=PRISTINE"
 
           dotnet build /tmp/reused-release-workspace/App.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
