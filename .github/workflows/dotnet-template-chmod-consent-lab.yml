@@ -29,6 +29,7 @@ jobs:
           rm -rf /tmp/dotnet-template-lab /tmp/PROCESSSTART_MARKER /tmp/CHMOD_BYPASS_MARKER
           mkdir -p /tmp/dotnet-template-lab/control/.template.config
           mkdir -p /tmp/dotnet-template-lab/chmod/.template.config
+          mkdir -p /tmp/dotnet-template-lab/mixed/.template.config
 
           cat > /tmp/dotnet-template-lab/control/victim.txt <<'EOF'
           control
@@ -85,6 +86,44 @@ jobs:
           }
           EOF
 
+          cat > /tmp/dotnet-template-lab/mixed/victim.txt <<'EOF'
+          mixed
+          EOF
+          cat > /tmp/dotnet-template-lab/mixed/.template.config/template.json <<'EOF'
+          {
+            "$schema": "http://json.schemastore.org/template",
+            "author": "Security Lab",
+            "classifications": ["Test"],
+            "identity": "SecurityLab.MixedDenyBypass.20260921",
+            "name": "Security Lab explicit deny bypass",
+            "shortName": "securitylab-mixed-deny",
+            "tags": { "type": "item" },
+            "postActions": [
+              {
+                "id": "chmod-first",
+                "description": "Benign chmod action before denied script",
+                "manualInstructions": [],
+                "actionId": "CB9A6CF3-4F5C-4860-B9D2-03A574959774",
+                "args": {
+                  "600 victim.txt; touch /tmp/MIXED_CHMOD_MARKER; #": "victim.txt"
+                },
+                "continueOnError": false
+              },
+              {
+                "id": "process-control",
+                "description": "Denied ProcessStart control",
+                "manualInstructions": [],
+                "actionId": "3A7C4B45-1F5D-4A30-959A-51B88E82B5D2",
+                "args": {
+                  "executable": "/bin/sh",
+                  "args": "-c \"touch /tmp/MIXED_PROCESS_MARKER\""
+                },
+                "continueOnError": false
+              }
+            ]
+          }
+          EOF
+
       - name: Install fixtures and print SDK
         shell: bash
         run: |
@@ -92,6 +131,7 @@ jobs:
           dotnet --info
           dotnet new install /tmp/dotnet-template-lab/control
           dotnet new install /tmp/dotnet-template-lab/chmod
+          dotnet new install /tmp/dotnet-template-lab/mixed
 
       - name: Negative control - ProcessStart is denied
         shell: bash
@@ -135,3 +175,25 @@ jobs:
           mode=$(stat -c '%a' /tmp/chmod-output/victim.txt)
           echo "CHMOD_OUTPUT_MODE=$mode"
           echo "CHMOD_CONSENT_BYPASS=CONFIRMED"
+
+      - name: Explicit deny control - chmod still reaches shell while ProcessStart is blocked
+        shell: bash
+        run: |
+          set -u
+          rm -f /tmp/MIXED_CHMOD_MARKER /tmp/MIXED_PROCESS_MARKER
+          rm -rf /tmp/mixed-deny-output
+          set +e
+          dotnet new securitylab-mixed-deny -o /tmp/mixed-deny-output --allow-scripts no
+          rc=$?
+          set -e
+          echo "MIXED_DENY_EXIT_CODE=$rc"
+          if ! test -e /tmp/MIXED_CHMOD_MARKER; then
+            echo "EXPLICIT_DENY_CHMOD_BYPASS=NOT_REPRODUCED"
+            exit 1
+          fi
+          if test -e /tmp/MIXED_PROCESS_MARKER; then
+            echo "EXPLICIT_DENY_PROCESS_CONTROL=FAIL"
+            exit 1
+          fi
+          echo "EXPLICIT_DENY_PROCESS_CONTROL=PASS"
+          echo "EXPLICIT_DENY_CHMOD_BYPASS=CONFIRMED"
