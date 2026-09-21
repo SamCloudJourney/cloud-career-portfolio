@@ -259,6 +259,127 @@ jobs:
           }
           EOF
 
+      - name: Add network-facing forwarder origin propagation proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/dotnet-sdk-security-lab/test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/BrowserToolsForwarderOriginSecurityTests.cs <<'EOF'
+          // Licensed to the .NET Foundation under one or more agreements.
+          // The .NET Foundation licenses this file to you under the MIT license.
+
+          using System.Net.WebSockets;
+          using Microsoft.AspNetCore.Builder;
+          using Microsoft.AspNetCore.Hosting;
+          using Microsoft.AspNetCore.Hosting.Server;
+          using Microsoft.AspNetCore.Hosting.Server.Features;
+          using Microsoft.AspNetCore.Http;
+          using Microsoft.Extensions.DependencyInjection;
+          using Microsoft.Extensions.Logging.Abstractions;
+
+          namespace Microsoft.AspNetCore.Watch.BrowserRefresh;
+
+          [TestClass]
+          public class BrowserToolsForwarderOriginSecurityTests
+          {
+              public TestContext TestContext { get; set; } = null!;
+
+              [TestMethod]
+              public async Task NetworkFacingApp_ForwardsSpoofedLocalhostOriginAndCredentialUnchanged()
+              {
+                  var observed = new TaskCompletionSource<(string Origin, string Protocol)>(
+                      TaskCreationOptions.RunContinuationsAsynchronously);
+
+                  await using var provider = await StartApplicationAsync(
+                      "http://127.0.0.1:0",
+                      async context =>
+                      {
+                          if (!context.WebSockets.IsWebSocketRequest)
+                          {
+                              context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                              return;
+                          }
+
+                          var protocol = context.WebSockets.WebSocketRequestedProtocols.Single();
+                          var origin = context.Request.Headers.Origin.ToString();
+                          using var socket = await context.WebSockets.AcceptWebSocketAsync(protocol);
+                          observed.TrySetResult((origin, protocol));
+                          socket.Abort();
+                      });
+
+                  using var forwarder = new BrowserToolsForwarder(
+                      GetAddress(provider),
+                      NullLogger<BrowserToolsForwarder>.Instance);
+
+                  await using var networkFacingApp = await StartApplicationAsync(
+                      "http://0.0.0.0:0",
+                      async context =>
+                      {
+                          if (context.Request.Path.StartsWithSegments(ApplicationPaths.BrowserTools))
+                          {
+                              await forwarder.ForwardAsync(context);
+                              return;
+                          }
+
+                          context.Response.StatusCode = StatusCodes.Status404NotFound;
+                      });
+
+                  using var attacker = new ClientWebSocket();
+                  const string spoofedOrigin = "http://localhost:45678";
+                  const string attackerCredential = "attacker-minted-public-key-ciphertext";
+                  attacker.Options.SetRequestHeader("Origin", spoofedOrigin);
+                  attacker.Options.AddSubProtocol(attackerCredential);
+
+                  var exposed = GetAddress(networkFacingApp);
+                  var target = new UriBuilder(exposed)
+                  {
+                      Host = "127.0.0.1",
+                      Scheme = "ws",
+                      Path = "/_framework/dotnet-browser-tools/connect"
+                  }.Uri;
+
+                  try
+                  {
+                      await attacker.ConnectAsync(target, TestContext.CancellationToken);
+                  }
+                  catch (WebSocketException)
+                  {
+                      // The mock provider aborts immediately after observing the forwarded handshake.
+                      // Whether the downstream close wins the race is irrelevant to header propagation.
+                  }
+
+                  var observation = await observed.Task.WaitAsync(TestContext.CancellationToken);
+                  Assert.AreEqual(spoofedOrigin, observation.Origin);
+                  Assert.AreEqual(attackerCredential, observation.Protocol);
+
+                  Console.WriteLine("NETWORK_FACING_APP_ROUTE=CONFIRMED");
+                  Console.WriteLine("FORWARDER_SPOOFED_LOCALHOST_ORIGIN_PRESERVED=CONFIRMED");
+                  Console.WriteLine("FORWARDER_ATTACKER_CREDENTIAL_PRESERVED=CONFIRMED");
+              }
+
+              private static async Task<WebApplication> StartApplicationAsync(string url, RequestDelegate handler)
+              {
+                  var builder = WebApplication.CreateBuilder();
+                  builder.WebHost.UseKestrel().UseUrls(url);
+                  var app = builder.Build();
+                  app.UseWebSockets();
+                  app.Run(handler);
+                  await app.StartAsync();
+                  return app;
+              }
+
+              private static Uri GetAddress(WebApplication app)
+              {
+                  var address = app.Services
+                      .GetRequiredService<IServer>()
+                      .Features
+                      .Get<IServerAddressesFeature>()!
+                      .Addresses
+                      .Single();
+                  return new Uri(address);
+              }
+          }
+          EOF
+
       - name: Run only the security regression test against current main
         shell: bash
         working-directory: /tmp/dotnet-sdk-security-lab
@@ -268,3 +389,5 @@ jobs:
           dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --list-tests text --no-progress | tee /tmp/dotnet-watch-test-list.txt
           grep -F "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" /tmp/dotnet-watch-test-list.txt
           dotnet test test/dotnet-watch.Tests/dotnet-watch.Tests.csproj -c Release --no-build --filter "SpoofedLocalhostOrigin_WithPublicBuildKey_CanReceiveRetainedManagedCodeDelta" --no-progress --output Detailed
+
+          dotnet test test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests.csproj -c Release --filter "NetworkFacingApp_ForwardsSpoofedLocalhostOriginAndCredentialUnchanged" --no-progress --output Detailed
