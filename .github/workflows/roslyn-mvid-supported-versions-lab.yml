@@ -25,6 +25,9 @@ jobs:
           - sdk: '10.0.x'
             tfm: net10.0
             label: net10
+          - sdk: '11.0.100-rc.1.26425.128'
+            tfm: net11.0
+            label: net11rc1
 
     name: ${{ matrix.label }}
     runs-on: ubuntu-latest
@@ -42,11 +45,17 @@ jobs:
         env:
           TFM: ${{ matrix.tfm }}
           LABEL: ${{ matrix.label }}
+          SDK_REQUESTED: ${{ matrix.sdk }}
         run: |
           set -euo pipefail
           major="${TFM#net}"
-          selected=$(dotnet --list-sdks | awk -v p="$major." '$1 ~ ("^" p) { v=$1 } END { print v }')
+          if [[ "$SDK_REQUESTED" == *"x" ]]; then
+            selected=$(dotnet --list-sdks | awk -v p="$major." '$1 ~ ("^" p) { v=$1 } END { print v }')
+          else
+            selected="$SDK_REQUESTED"
+          fi
           test -n "$selected"
+          dotnet --list-sdks | awk '{print $1}' | grep -Fx "$selected"
           cat > /tmp/global.json <<EOF
           {
             "sdk": {
