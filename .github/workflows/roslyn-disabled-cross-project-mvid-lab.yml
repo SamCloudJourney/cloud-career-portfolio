@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/roslyn-cross-project /tmp/CROSS_PROJECT_MARKER
+          rm -rf /tmp/roslyn-cross-project /tmp/CROSS_PROJECT_MARKER /tmp/CROSS_PROJECT_PROCESS_MARKER
           mkdir -p /tmp/roslyn-cross-project/{trusted-analyzer,malicious-analyzer,reader,shared,poison-project,trusted-project}
 
           cat > /tmp/roslyn-cross-project/trusted-analyzer/CollisionAnalyzer.csproj <<'EOF'
@@ -65,6 +65,7 @@ jobs:
 
           cat > /tmp/roslyn-cross-project/malicious-analyzer/CollisionAnalyzer.cs <<'EOF'
           using System.Collections.Immutable;
+          using System.Diagnostics;
           using System.IO;
           using System.Linq;
           using Microsoft.CodeAnalysis;
@@ -85,6 +86,15 @@ jobs:
                           ctx.Compilation.SyntaxTrees.Select(t => t.GetText().ToString()));
                       File.AppendAllText("/tmp/CROSS_PROJECT_MARKER",
                           "STALE_ANALYZER_PROJECT=" + ctx.Compilation.AssemblyName + "\n" + combinedSource + "\n");
+                      if (ctx.Compilation.AssemblyName == "Trusted")
+                      {
+                          Process.Start(new ProcessStartInfo
+                          {
+                              FileName = "/bin/sh",
+                              ArgumentList = { "-c", "printf 'STALE_ANALYZER_CHILD_PROCESS_EXECUTED\\n' > /tmp/CROSS_PROJECT_PROCESS_MARKER" },
+                              UseShellExecute = false
+                          })!.WaitForExit();
+                      }
                       ctx.ReportDiagnostic(Diagnostic.Create(Rule, Location.None));
                   });
               }
@@ -158,7 +168,7 @@ jobs:
         run: |
           set -euo pipefail
           dotnet build-server shutdown >/dev/null 2>&1 || true
-          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/cross-control.log
+          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/CROSS_PROJECT_PROCESS_MARKER /tmp/cross-control.log
           cp /tmp/roslyn-cross-project/malicious-unpatched.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
           export RoslynCommandLineLogFile=/tmp/cross-control.log
 
@@ -186,6 +196,7 @@ jobs:
 
           dotnet build /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
           test ! -e /tmp/CROSS_PROJECT_MARKER
+          test ! -e /tmp/CROSS_PROJECT_PROCESS_MARKER
           echo "CONTROL_CROSS_PROJECT_MVID_GUARD=PASS"
           grep -E "ID=VBCSCompiler .*Begin Analyzer Consistency|MVID|Rejected" /tmp/cross-control.log || true
 
@@ -196,7 +207,7 @@ jobs:
           rm -rf /tmp/roslyn-cross-project/trusted-project
           mkdir -p /tmp/roslyn-cross-project/trusted-project
           dotnet build-server shutdown >/dev/null 2>&1 || true
-          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/cross-attack.log
+          rm -f /tmp/CROSS_PROJECT_MARKER /tmp/CROSS_PROJECT_PROCESS_MARKER /tmp/cross-attack.log
           cp /tmp/roslyn-cross-project/malicious-patched.dll /tmp/roslyn-cross-project/shared/CollisionAnalyzer.dll
           export RoslynCommandLineLogFile=/tmp/cross-attack.log
 
@@ -231,10 +242,13 @@ jobs:
           dotnet build /tmp/roslyn-cross-project/trusted-project/Trusted.csproj -c Release -t:Rebuild -p:UseSharedCompilation=true -v:q
 
           test -e /tmp/CROSS_PROJECT_MARKER
+          test -e /tmp/CROSS_PROJECT_PROCESS_MARKER
           grep -q "STALE_ANALYZER_PROJECT=Trusted" /tmp/CROSS_PROJECT_MARKER
           grep -q "TRUSTED_LATER_SOURCE_SENTINEL_20260921_ATTACK" /tmp/CROSS_PROJECT_MARKER
           echo "DISABLED_ANALYZER_CROSS_PROJECT_MVID_BYPASS=CONFIRMED"
           echo "LATER_TRUSTED_SOURCE_READ_BY_STALE_ANALYZER=CONFIRMED"
+          echo "TRUSTED_BUILD_CHILD_PROCESS_EXECUTION=CONFIRMED"
           cat /tmp/CROSS_PROJECT_MARKER
+          cat /tmp/CROSS_PROJECT_PROCESS_MARKER
           echo "SERVER_REUSE_EVIDENCE:"
           grep -E "ID=VBCSCompiler .*Begin Analyzer Consistency" /tmp/cross-attack.log || true
