@@ -8,9 +8,7 @@ root = Path(sys.argv[1])
 p = root / "src/Compilers/Server/VBCSCompilerTests/AnalyzerConsistencyCheckerTests.cs"
 s = p.read_text(encoding="utf-8-sig")
 
-marker = """        /// <summary>
-        /// A differing MVID is okay when it's loading a DLL from the compiler directory.
-"""
+anchor = "        public void LoadingLibraryFromCompiler()"
 
 test = r'''
         [Fact]
@@ -77,8 +75,12 @@ test = r'''
 
 if "SameMvidDifferentContentSameDirectory_CurrentMainAcceptsCollision" in s:
     raise SystemExit("test already exists unexpectedly")
-if marker not in s:
-    raise SystemExit("insertion marker not found")
-
-p.write_text(s.replace(marker, test + marker), encoding="utf-8")
+if anchor not in s:
+    raise SystemExit("insertion anchor not found")
+method_index = s.index(anchor)
+insert_index = s.rfind("        [Fact]", 0, method_index)
+if insert_index < 0:
+    raise SystemExit("preceding Fact attribute not found")
+s = s[:insert_index] + test + s[insert_index:]
+p.write_text(s, encoding="utf-8")
 print(p)
