@@ -25,13 +25,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p runner_exchange/fireblocks_cmp_finalized_deep_v1
+          mkdir -p runner_exchange/fireblocks_cmp_finalized_deep_v2
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/payload_private.pem >/dev/null 2>&1
-          openssl pkey -in /tmp/payload_private.pem -pubout -out runner_exchange/fireblocks_cmp_finalized_deep_v1/payload_public.pem >/dev/null 2>&1
+          openssl pkey -in /tmp/payload_private.pem -pubout -out runner_exchange/fireblocks_cmp_finalized_deep_v2/payload_public.pem >/dev/null 2>&1
           git config user.name "fireblocks-finalized-validator"
           git config user.email "fireblocks-finalized-validator@users.noreply.github.com"
-          git add runner_exchange/fireblocks_cmp_finalized_deep_v1/payload_public.pem
-          git commit -m "Publish Fireblocks finalized-source one-time key [skip ci]" >/dev/null
+          git add runner_exchange/fireblocks_cmp_finalized_deep_v2/payload_public.pem
+          git commit -m "Publish Fireblocks finalized-source v2 one-time key [skip ci]" >/dev/null
           git push origin HEAD:fireblocks-cmp-finalized-deep-20260924 >/dev/null
 
       - name: Wait for encrypted regression payload
@@ -43,7 +43,7 @@ jobs:
             git fetch origin fireblocks-cmp-finalized-deep-20260924 --quiet
             ok=1
             for f in payload.b64 payload_key.b64; do
-              git show "origin/fireblocks-cmp-finalized-deep-20260924:runner_exchange/fireblocks_cmp_finalized_deep_v1/$f" > "/tmp/$f" 2>/dev/null || ok=0
+              git show "origin/fireblocks-cmp-finalized-deep-20260924:runner_exchange/fireblocks_cmp_finalized_deep_v2/$f" > "/tmp/$f" 2>/dev/null || ok=0
             done
             if [ "$ok" = "1" ]; then found=1; break; fi
             sleep 2
