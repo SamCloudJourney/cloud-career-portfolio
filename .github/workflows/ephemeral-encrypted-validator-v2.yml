@@ -1,0 +1,179 @@
+name: Encrypted Package Validation V2
+
+on:
+  push:
+    branches:
+      - msrc-signalr-poc-20260924
+    paths:
+      - .github/workflows/ephemeral-encrypted-validator-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: msrc-signalr-poc-20260924
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+
+      - name: Publish ephemeral decrypt key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runner_exchange/v2
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/v2_source_private.pem >/dev/null 2>&1
+          openssl pkey -in /tmp/v2_source_private.pem -pubout -out runner_exchange/v2/source_public.pem >/dev/null 2>&1
+          git config user.name "encrypted-validator"
+          git config user.email "encrypted-validator@users.noreply.github.com"
+          git add runner_exchange/v2/source_public.pem
+          git commit -m "Publish V2 ephemeral key [skip ci]" >/dev/null
+          git push origin HEAD:msrc-signalr-poc-20260924 >/dev/null
+
+      - name: Wait for chunked encrypted payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for i in $(seq 1 300); do
+            git fetch origin msrc-signalr-poc-20260924 --quiet
+            ok=1
+            for f in source_payload.part00 source_payload.part01 source_payload.part02 source_payload.part03 source_key.b64; do
+              git show "origin/msrc-signalr-poc-20260924:runner_exchange/v2/$f" > "/tmp/$f" 2>/dev/null || ok=0
+            done
+            if [ "$ok" = "1" ]; then
+              found=1
+              break
+            fi
+            sleep 2
+          done
+          test "$found" = "1"
+          cat /tmp/source_payload.part00 /tmp/source_payload.part01 /tmp/source_payload.part02 /tmp/source_payload.part03 > /tmp/source_payload.b64
+          test "$(wc -c < /tmp/source_payload.b64)" -gt 20000
+          echo "Full encrypted payload assembled."
+
+      - name: Decrypt and execute validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d /tmp/source_key.b64 > /tmp/source_key.enc
+          base64 -d /tmp/source_payload.b64 > /tmp/source_payload.enc
+
+          openssl pkeyutl -decrypt \
+            -inkey /tmp/v2_source_private.pem \
+            -in /tmp/source_key.enc \
+            -out /tmp/source_keyiv.bin \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+
+          test "$(stat -c%s /tmp/source_keyiv.bin)" = "48"
+          KEY=$(dd if=/tmp/source_keyiv.bin bs=1 count=32 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          IV=$(dd if=/tmp/source_keyiv.bin bs=1 skip=32 count=16 2>/dev/null | od -An -tx1 | tr -d ' \n')
+
+          openssl enc -d -aes-256-cbc -K "$KEY" -iv "$IV" \
+            -in /tmp/source_payload.enc -out /tmp/source_package.zip
+
+          unzip -t /tmp/source_package.zip >/dev/null
+          rm -rf /tmp/work
+          mkdir -p /tmp/work
+          unzip -q /tmp/source_package.zip -d /tmp/work
+          PKG="/tmp/work/SignalR_Scheme_Bypass_MSRC_Package"
+          test -d "$PKG"
+          mkdir -p "$PKG/evidence"
+
+          dotnet --info > "$PKG/evidence/runner-dotnet-info-before.txt"
+
+          set +e
+          bash "$PKG/scripts/capture-evidence.sh" > "$PKG/evidence/runner-console.log" 2>&1
+          RC=$?
+          set -e
+
+          OUT="$PKG/evidence/vulnerable-output.txt"
+          STATUS=FAIL
+          if [ "$RC" -eq 0 ] &&
+             grep -q '^VULNERABLE_REPRO_CONFIRMED=True$' "$OUT" &&
+             grep -q '^HTTP_WRONG_SCHEME_DENIED=True$' "$OUT" &&
+             grep -q '^SIGNALR_WRONG_SCHEME_METHOD_EXECUTED=True$' "$OUT" &&
+             grep -q '^TENANT_B_METHOD_REAUTH_DELTA=0$' "$OUT" &&
+             grep -q '^HTTP_CORRECT_SCHEME_ALLOWED=True$' "$OUT" &&
+             grep -q '^SIGNALR_CORRECT_SCHEME_ALLOWED=True$' "$OUT" &&
+             grep -q '^ANONYMOUS_CONNECTION_DENIED=True$' "$OUT"; then
+            STATUS=PASS
+          fi
+
+          {
+            echo "VALIDATION_STATUS=$STATUS"
+            echo "CAPTURE_SCRIPT_EXIT=$RC"
+            echo "RUNNER_IMAGE=ubuntu-latest"
+            echo "DOTNET_REQUESTED_SDK=10.0.401"
+            date -u '+VALIDATED_AT_UTC=%Y-%m-%dT%H:%M:%SZ'
+          } > "$PKG/evidence/validation-status.txt"
+
+          (
+            cd "$PKG"
+            find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+          (
+            cd /tmp/work
+            zip -qr /tmp/final_package.zip SignalR_Scheme_Bypass_MSRC_Package
+          )
+          unzip -t /tmp/final_package.zip >/dev/null
+          printf '%s\n' "$STATUS" > /tmp/validation_status
+
+      - name: Encrypt and return validation package
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f /tmp/final_package.zip ]; then
+            mkdir -p /tmp/fallback
+            printf 'VALIDATION_STATUS=INFRA_FAILURE\n' > /tmp/fallback/status.txt
+            zip -qj /tmp/final_package.zip /tmp/fallback/status.txt
+            echo INFRA_FAILURE > /tmp/validation_status
+          fi
+
+          head -c 48 /dev/urandom > /tmp/result_keyiv.bin
+          KEY=$(dd if=/tmp/result_keyiv.bin bs=1 count=32 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          IV=$(dd if=/tmp/result_keyiv.bin bs=1 skip=32 count=16 2>/dev/null | od -An -tx1 | tr -d ' \n')
+
+          openssl enc -aes-256-cbc -K "$KEY" -iv "$IV" \
+            -in /tmp/final_package.zip -out /tmp/result_payload.enc
+
+          openssl pkeyutl -encrypt -pubin \
+            -inkey runner_exchange/result_public.pem \
+            -in /tmp/result_keyiv.bin \
+            -out /tmp/result_key.enc \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+
+          base64 -w0 /tmp/result_payload.enc > /tmp/result_payload.b64
+          split -b 8000 -d -a 2 /tmp/result_payload.b64 /tmp/result_payload.part
+          base64 -w0 /tmp/result_key.enc > /tmp/result_key.b64
+
+          git fetch origin msrc-signalr-poc-20260924 --quiet
+          git reset --hard origin/msrc-signalr-poc-20260924 >/dev/null
+          mkdir -p runner_exchange/v2/result
+          cp /tmp/result_payload.part* runner_exchange/v2/result/
+          cp /tmp/result_key.b64 runner_exchange/v2/result/result_key.b64
+          cp /tmp/validation_status runner_exchange/v2/result/result_status.txt
+
+          git config user.name "encrypted-validator"
+          git config user.email "encrypted-validator@users.noreply.github.com"
+          git add runner_exchange/v2/result
+          git commit -m "Return V2 encrypted validation result [skip ci]" >/dev/null
+          git push origin HEAD:msrc-signalr-poc-20260924 >/dev/null
+          echo "Encrypted result returned."
+
+      - name: Enforce validation
+        shell: bash
+        run: |
+          test "$(cat /tmp/validation_status)" = "PASS"
