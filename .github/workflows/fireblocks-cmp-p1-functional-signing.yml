@@ -25,12 +25,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p runner_exchange/fireblocks_cmp_functional
+          mkdir -p runner_exchange/fireblocks_cmp_functional_v2
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/source_private.pem >/dev/null 2>&1
-          openssl pkey -in /tmp/source_private.pem -pubout -out runner_exchange/fireblocks_cmp_functional/source_public.pem >/dev/null 2>&1
+          openssl pkey -in /tmp/source_private.pem -pubout -out runner_exchange/fireblocks_cmp_functional_v2/source_public.pem >/dev/null 2>&1
           git config user.name "fireblocks-functional-validator"
           git config user.email "fireblocks-functional-validator@users.noreply.github.com"
-          git add runner_exchange/fireblocks_cmp_functional/source_public.pem
+          git add runner_exchange/fireblocks_cmp_functional_v2/source_public.pem
           git commit -m "Publish Fireblocks functional-test ephemeral key [skip ci]" >/dev/null
           git push origin HEAD:fireblocks-cmp-p1-functional-signing-20260924 >/dev/null
 
@@ -43,7 +43,7 @@ jobs:
             git fetch origin fireblocks-cmp-p1-functional-signing-20260924 --quiet
             ok=1
             for f in payload.b64 payload_key.b64; do
-              git show "origin/fireblocks-cmp-p1-functional-signing-20260924:runner_exchange/fireblocks_cmp_functional/$f" > "/tmp/$f" 2>/dev/null || ok=0
+              git show "origin/fireblocks-cmp-p1-functional-signing-20260924:runner_exchange/fireblocks_cmp_functional_v2/$f" > "/tmp/$f" 2>/dev/null || ok=0
             done
             if [ "$ok" = "1" ]; then found=1; break; fi
             sleep 2
@@ -103,10 +103,25 @@ jobs:
           done
           test "$(grep -c '^P1_FUNCTIONAL_CHAIN_CONFIRMED=1$' /tmp/all-runs.log)" = "5"
           test "$(grep -c '^HONEST_3_OF_3_DESTINATION_CMP_SIGNATURE_VERIFIES=1$' /tmp/all-runs.log)" = "5"
-          test "$(grep -c '^OUTSIDER_A_SOLO_SIGNATURE_VERIFIES=1$' /tmp/all-runs.log)" = "5"
+          test "$(grep -c '^OUTSIDER_A_SOLO_SIGNATURE_VERIFIES=1          test "$(grep -c '^DESTINATION_METADATA_T_EQ_N_EQ_3=1$' /tmp/all-runs.log)" = "5"
+          test "$(grep -c '^MALICIOUS_SOURCE_NOT_IN_DESTINATION_SET=1$' /tmp/all-runs.log)" = "5"
+          test "$(grep -c 'All tests passed' /tmp/all-runs.log)" = "5"
+          echo "REAL_UPSTREAM_FUNCTIONAL_TRIALS=5/5_PASS"
+
+# gfpfireblocks-two-message-retry
+ /tmp/all-runs.log)" = "5"
+          test "$(grep -c '^OUTSIDER_A_TWO_DISTINCT_SIGNATURES_VERIFY=1          test "$(grep -c '^DESTINATION_METADATA_T_EQ_N_EQ_3=1$' /tmp/all-runs.log)" = "5"
+          test "$(grep -c '^MALICIOUS_SOURCE_NOT_IN_DESTINATION_SET=1$' /tmp/all-runs.log)" = "5"
+          test "$(grep -c 'All tests passed' /tmp/all-runs.log)" = "5"
+          echo "REAL_UPSTREAM_FUNCTIONAL_TRIALS=5/5_PASS"
+
+# gfpfireblocks-two-message-retry
+ /tmp/all-runs.log)" = "5"
           test "$(grep -c '^DESTINATION_METADATA_T_EQ_N_EQ_3=1$' /tmp/all-runs.log)" = "5"
           test "$(grep -c '^MALICIOUS_SOURCE_NOT_IN_DESTINATION_SET=1$' /tmp/all-runs.log)" = "5"
           test "$(grep -c 'All tests passed' /tmp/all-runs.log)" = "5"
           echo "REAL_UPSTREAM_FUNCTIONAL_TRIALS=5/5_PASS"
 
 # gfpfireblocks-two-message-retry
+
+# mailbox-v2-native-gfp-two-message
