@@ -1,0 +1,12 @@
+name: Ephemeral Runner Smoke
+on:
+  push:
+    branches:
+      - msrc-signalr-poc-20260924
+    paths:
+      - .github/workflows/ephemeral-runner-smoke.yml
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo RUNNER_OK
