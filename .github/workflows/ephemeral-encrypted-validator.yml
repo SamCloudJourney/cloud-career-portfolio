@@ -1,0 +1,184 @@
+name: Ephemeral Encrypted Validation
+
+on:
+  push:
+    branches:
+      - msrc-signalr-poc-20260924
+    paths:
+      - .github/workflows/ephemeral-encrypted-validator.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: msrc-signalr-poc-20260924
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+
+      - name: Publish ephemeral decrypt public key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runner_exchange
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/source_private.pem >/dev/null 2>&1
+          openssl pkey -in /tmp/source_private.pem -pubout -out runner_exchange/source_public.pem >/dev/null 2>&1
+
+          git config user.name "ephemeral-validator"
+          git config user.email "ephemeral-validator@users.noreply.github.com"
+          git add runner_exchange/source_public.pem
+          git commit -m "Publish ephemeral validator key [skip ci]" >/dev/null
+          git push origin HEAD:msrc-signalr-poc-20260924 >/dev/null
+
+      - name: Wait for encrypted payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for i in $(seq 1 300); do
+            git fetch origin msrc-signalr-poc-20260924 --quiet
+            if git show origin/msrc-signalr-poc-20260924:runner_exchange/source_payload.b64 > /tmp/source_payload.b64 2>/dev/null &&
+               git show origin/msrc-signalr-poc-20260924:runner_exchange/source_key.b64 > /tmp/source_key.b64 2>/dev/null; then
+              found=1
+              break
+            fi
+            sleep 2
+          done
+          test "$found" = "1"
+          echo "Encrypted payload received."
+
+      - name: Decrypt and execute package validation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base64 -d /tmp/source_key.b64 > /tmp/source_key.enc
+          base64 -d /tmp/source_payload.b64 > /tmp/source_payload.enc
+
+          openssl pkeyutl -decrypt \
+            -inkey /tmp/source_private.pem \
+            -in /tmp/source_key.enc \
+            -out /tmp/source_keyiv.bin \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+
+          test "$(stat -c%s /tmp/source_keyiv.bin)" = "48"
+          KEY=$(dd if=/tmp/source_keyiv.bin bs=1 count=32 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          IV=$(dd if=/tmp/source_keyiv.bin bs=1 skip=32 count=16 2>/dev/null | od -An -tx1 | tr -d ' \n')
+
+          openssl enc -d -aes-256-cbc \
+            -K "$KEY" \
+            -iv "$IV" \
+            -in /tmp/source_payload.enc \
+            -out /tmp/source_package.zip
+
+          rm -rf /tmp/work
+          mkdir -p /tmp/work
+          unzip -q /tmp/source_package.zip -d /tmp/work
+
+          PKG="/tmp/work/SignalR_Scheme_Bypass_MSRC_Package"
+          test -d "$PKG"
+          mkdir -p "$PKG/evidence"
+
+          set +e
+          bash "$PKG/scripts/capture-evidence.sh" > "$PKG/evidence/runner-console.log" 2>&1
+          RC=$?
+          set -e
+
+          STATUS=FAIL
+          OUT="$PKG/evidence/vulnerable-output.txt"
+          if [ "$RC" -eq 0 ] &&
+             grep -q '^VULNERABLE_REPRO_CONFIRMED=True$' "$OUT" &&
+             grep -q '^HTTP_WRONG_SCHEME_DENIED=True$' "$OUT" &&
+             grep -q '^SIGNALR_WRONG_SCHEME_METHOD_EXECUTED=True$' "$OUT" &&
+             grep -q '^TENANT_B_METHOD_REAUTH_DELTA=0$' "$OUT" &&
+             grep -q '^HTTP_CORRECT_SCHEME_ALLOWED=True$' "$OUT" &&
+             grep -q '^SIGNALR_CORRECT_SCHEME_ALLOWED=True$' "$OUT" &&
+             grep -q '^ANONYMOUS_CONNECTION_DENIED=True$' "$OUT"; then
+            STATUS=PASS
+          fi
+
+          {
+            echo "VALIDATION_STATUS=$STATUS"
+            echo "CAPTURE_SCRIPT_EXIT=$RC"
+            echo "RUNNER_OS=ubuntu-latest"
+            echo "DOTNET_REQUESTED_SDK=10.0.401"
+            date -u '+VALIDATED_AT_UTC=%Y-%m-%dT%H:%M:%SZ'
+          } > "$PKG/evidence/validation-status.txt"
+
+          (
+            cd "$PKG"
+            find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+          (
+            cd /tmp/work
+            zip -qr /tmp/final_package.zip SignalR_Scheme_Bypass_MSRC_Package
+          )
+
+          sha256sum /tmp/final_package.zip > /tmp/final_package.zip.sha256
+          printf '%s\n' "$STATUS" > /tmp/validation_status
+
+      - name: Encrypt validation result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f /tmp/final_package.zip ]; then
+            rm -rf /tmp/fallback
+            mkdir -p /tmp/fallback
+            cp /tmp/validation_status /tmp/fallback/validation_status 2>/dev/null || echo FAIL > /tmp/fallback/validation_status
+            tar -czf /tmp/final_package.zip -C /tmp/fallback .
+          fi
+
+          head -c 48 /dev/urandom > /tmp/result_keyiv.bin
+          KEY=$(dd if=/tmp/result_keyiv.bin bs=1 count=32 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          IV=$(dd if=/tmp/result_keyiv.bin bs=1 skip=32 count=16 2>/dev/null | od -An -tx1 | tr -d ' \n')
+
+          openssl enc -aes-256-cbc \
+            -K "$KEY" \
+            -iv "$IV" \
+            -in /tmp/final_package.zip \
+            -out /tmp/result_payload.enc
+
+          openssl pkeyutl -encrypt \
+            -pubin \
+            -inkey runner_exchange/result_public.pem \
+            -in /tmp/result_keyiv.bin \
+            -out /tmp/result_key.enc \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+
+          base64 -w0 /tmp/result_payload.enc > /tmp/result_payload.b64
+          base64 -w0 /tmp/result_key.enc > /tmp/result_key.b64
+
+          git fetch origin msrc-signalr-poc-20260924 --quiet
+          git reset --hard origin/msrc-signalr-poc-20260924 >/dev/null
+          mkdir -p runner_exchange
+          cp /tmp/result_payload.b64 runner_exchange/result_payload.b64
+          cp /tmp/result_key.b64 runner_exchange/result_key.b64
+          cp /tmp/validation_status runner_exchange/result_status.txt 2>/dev/null || echo FAIL > runner_exchange/result_status.txt
+
+          git config user.name "ephemeral-validator"
+          git config user.email "ephemeral-validator@users.noreply.github.com"
+          git add runner_exchange/result_payload.b64 runner_exchange/result_key.b64 runner_exchange/result_status.txt
+          git commit -m "Return encrypted validation result [skip ci]" >/dev/null
+          git push origin HEAD:msrc-signalr-poc-20260924 >/dev/null
+
+          echo "Encrypted validation result returned."
+
+      - name: Enforce validation result
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat /tmp/validation_status)" = "PASS"
