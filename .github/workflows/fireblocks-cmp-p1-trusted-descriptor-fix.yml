@@ -1,0 +1,246 @@
+name: Fireblocks CMP trusted-source-descriptor fix validation
+
+on:
+  push:
+    branches:
+      - fireblocks-cmp-p1-trusted-descriptor-fix-20260924
+    paths:
+      - .github/workflows/fireblocks-cmp-p1-trusted-descriptor-fix.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-fix-boundary:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev uuid-dev libsecp256k1-dev
+
+      - name: Fetch exact Fireblocks current main
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mpc-lib
+          git init -q /tmp/mpc-lib
+          git -C /tmp/mpc-lib remote add origin https://github.com/fireblocks/mpc-lib.git
+          git -C /tmp/mpc-lib fetch -q --depth 1 origin 00ae08b7f1bdbb887aedece384aca2f942aae432
+          git -C /tmp/mpc-lib checkout -q FETCH_HEAD
+          test "$(git -C /tmp/mpc-lib rev-parse HEAD)" = "00ae08b7f1bdbb887aedece384aca2f942aae432"
+
+      - name: Patch CMP add_user to require trusted canonical source descriptor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          h=Path("/tmp/mpc-lib/include/cosigner/cmp_setup_service.h")
+          hs=h.read_text()
+          old_h='''    void add_user(const std::string& tenant_id, const std::string& key_id, cosigner_sign_algorithm algorithm, uint8_t t, const std::map<uint64_t, add_user_data>& data, uint64_t ttl, commitment& setup_commitment);'''
+          new_h='''    void add_user(const std::string& tenant_id, const std::string& key_id, cosigner_sign_algorithm algorithm, uint8_t t,
+              const std::vector<uint64_t>& expected_source_players,
+              const elliptic_curve256_point_t& expected_source_public_key,
+              const std::map<uint64_t, add_user_data>& data, uint64_t ttl, commitment& setup_commitment);'''
+          if old_h not in hs: raise SystemExit("header signature anchor missing")
+          h.write_text(hs.replace(old_h,new_h,1))
+
+          p=Path("/tmp/mpc-lib/src/common/cosigner/cmp_setup_service.cpp")
+          s=p.read_text()
+          old_sig='''void cmp_setup_service::add_user(const std::string& tenant_id, const std::string& key_id, cosigner_sign_algorithm algorithm, uint8_t t, const std::map<uint64_t, add_user_data>& data, uint64_t ttl, commitment& setup_commitment)
+          {'''
+          new_sig='''void cmp_setup_service::add_user(const std::string& tenant_id, const std::string& key_id, cosigner_sign_algorithm algorithm, uint8_t t,
+              const std::vector<uint64_t>& expected_source_players,
+              const elliptic_curve256_point_t& expected_source_public_key,
+              const std::map<uint64_t, add_user_data>& data, uint64_t ttl, commitment& setup_commitment)
+          {'''
+          if old_sig not in s: raise SystemExit("cpp signature anchor missing")
+          s=s.replace(old_sig,new_sig,1)
+
+          old_start='''    if (data.size() == 0)
+              {
+                  LOG_ERROR("Got empty add user data map");
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+
+              const size_t n = data.begin()->second.encrypted_shares.size();
+          '''
+          new_start='''    if (data.size() < 2)
+              {
+                  LOG_ERROR("Got source parts from %u players, expected at least 2", (uint32_t)data.size());
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+
+              std::set<uint64_t> expected_source_set(expected_source_players.begin(), expected_source_players.end());
+              if (expected_source_set.size() != expected_source_players.size() ||
+                  expected_source_set.size() != data.size())
+              {
+                  LOG_ERROR("Source player set does not exactly match trusted expected source membership");
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+
+              auto validation_algebra = get_algebra(algorithm);
+              if (validation_algebra->validate_non_infinity_point(validation_algebra, &expected_source_public_key)
+                  != ELLIPTIC_CURVE_ALGEBRA_SUCCESS)
+              {
+                  LOG_ERROR("Trusted expected source public key is unset or invalid");
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+
+              for (const auto& source : data)
+              {
+                  if (expected_source_set.find(source.first) == expected_source_set.end())
+                  {
+                      LOG_ERROR("Unexpected source player %" PRIu64, source.first);
+                      throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+                  }
+                  if (memcmp(source.second.public_key.data, expected_source_public_key,
+                             sizeof(elliptic_curve256_point_t)) != 0)
+                  {
+                      LOG_ERROR("Source player %" PRIu64 " supplied a public key that differs from the trusted source key", source.first);
+                      throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+                  }
+              }
+
+              const size_t n = data.begin()->second.encrypted_shares.size();
+          '''
+          if old_start not in s: raise SystemExit("cpp validation anchor missing")
+          p.write_text(s.replace(old_start,new_start,1))
+
+          t=Path("/tmp/mpc-lib/test/cosigner/setup_test.cpp")
+          ts=t.read_text()
+          old_call='''REQUIRE_NOTHROW(info->setup_service.add_user(TENANT_ID, new_keyid, type, players_ids.size(), add_user_request_data, 0, commitment));'''
+          new_call='''REQUIRE_NOTHROW(info->setup_service.add_user(
+                      TENANT_ID, new_keyid, type, players_ids.size(),
+                      old_players_ids, pubkey, add_user_request_data, 0, commitment));'''
+          if old_call not in ts: raise SystemExit("setup test call anchor missing")
+          ts=ts.replace(old_call,new_call,1)
+
+          negative=r'''
+          TEST_CASE("CMP add_user trusted source descriptor rejects incomplete or forged source transitions",
+                    "[cmp-add-user-trusted-source-fix]")
+          {
+              const cosigner_sign_algorithm type = ECDSA_SECP256K1;
+              std::unique_ptr<elliptic_curve256_algebra_ctx_t, void(*)(elliptic_curve256_algebra_ctx_t*)>
+                  algebra(create_algebra(type), elliptic_curve256_algebra_ctx_free);
+              REQUIRE(algebra != nullptr);
+
+              uuid_t uid;
+              char source_keyid[37] = {0};
+              char subset_keyid[37] = {0};
+              char forged_keyid[37] = {0};
+              char legit_keyid[37] = {0};
+              uuid_generate_random(uid); uuid_unparse(uid, source_keyid);
+              uuid_generate_random(uid); uuid_unparse(uid, subset_keyid);
+              uuid_generate_random(uid); uuid_unparse(uid, forged_keyid);
+              uuid_generate_random(uid); uuid_unparse(uid, legit_keyid);
+
+              players_setup_info source_players;
+              source_players[1]; source_players[2]; source_players[3];
+              elliptic_curve256_point_t source_public_key = {0};
+              create_secret(source_players, type, source_keyid, source_public_key,
+                            fireblocks::common::cosigner::MPC_PROTOCOL_VERSION);
+
+              std::vector<uint64_t> source_ids = {1,2,3};
+              std::vector<uint64_t> destination_ids = {11,12,13};
+              std::map<uint64_t, add_user_data> all_sources;
+              for (uint64_t source_id : source_ids)
+              {
+                  setup_info source(source_id, source_players[source_id]);
+                  REQUIRE_NOTHROW(source.setup_service.add_user_request(
+                      source_keyid, type, legit_keyid, destination_ids, 3,
+                      all_sources[source_id]));
+              }
+
+              elliptic_curve256_scalar_t random_scalar = {0};
+              elliptic_curve256_point_t forged_public_key = {0};
+              REQUIRE(algebra->rand(algebra.get(), &random_scalar) == ELLIPTIC_CURVE_ALGEBRA_SUCCESS);
+              REQUIRE(algebra->generator_mul(algebra.get(), &forged_public_key, &random_scalar)
+                      == ELLIPTIC_CURVE_ALGEBRA_SUCCESS);
+              REQUIRE(memcmp(forged_public_key, source_public_key,
+                             algebra->point_size(algebra.get())) != 0);
+
+              // A+B only: exact membership check rejects before destination setup.
+              std::map<uint64_t, add_user_data> subset = {
+                  {1, all_sources.at(1)},
+                  {2, all_sources.at(2)}
+              };
+              memcpy(subset[1].public_key.data, forged_public_key, sizeof(elliptic_curve256_point_t));
+              memcpy(subset[2].public_key.data, forged_public_key, sizeof(elliptic_curve256_point_t));
+              players_setup_info subset_dest;
+              subset_dest[11];
+              setup_info subset_service(11, subset_dest[11]);
+              commitment subset_commitment;
+              REQUIRE_THROWS_AS(subset_service.setup_service.add_user(
+                  TENANT_ID, subset_keyid, type, 3,
+                  source_ids, source_public_key, subset, 0, subset_commitment),
+                  cosigner_exception);
+
+              // Full membership but all messages lie about the canonical public key:
+              // trusted expected source key rejects the transition.
+              std::map<uint64_t, add_user_data> forged_full = all_sources;
+              for (auto& source : forged_full)
+                  memcpy(source.second.public_key.data, forged_public_key,
+                         sizeof(elliptic_curve256_point_t));
+              players_setup_info forged_dest;
+              forged_dest[11];
+              setup_info forged_service(11, forged_dest[11]);
+              commitment forged_commitment;
+              REQUIRE_THROWS_AS(forged_service.setup_service.add_user(
+                  TENANT_ID, forged_keyid, type, 3,
+                  source_ids, source_public_key, forged_full, 0, forged_commitment),
+                  cosigner_exception);
+
+              // Normal complete transition with canonical metadata still works.
+              players_setup_info legit_dest;
+              legit_dest[11];
+              setup_info legit_service(11, legit_dest[11]);
+              commitment legit_commitment;
+              REQUIRE_NOTHROW(legit_service.setup_service.add_user(
+                  TENANT_ID, legit_keyid, type, 3,
+                  source_ids, source_public_key, all_sources, 0, legit_commitment));
+
+              std::cout << "TRUSTED_SOURCE_FIX_SUBSET_REJECTED=1" << std::endl;
+              std::cout << "TRUSTED_SOURCE_FIX_FORGED_CANONICAL_KEY_REJECTED=1" << std::endl;
+              std::cout << "TRUSTED_SOURCE_FIX_LEGITIMATE_COMPLETE_TRANSITION_ACCEPTED=1" << std::endl;
+          }
+          '''
+          t.write_text(ts + negative)
+          PY
+          git -C /tmp/mpc-lib diff --check
+          git -C /tmp/mpc-lib diff --stat
+          git -C /tmp/mpc-lib diff -- include/cosigner/cmp_setup_service.h src/common/cosigner/cmp_setup_service.cpp test/cosigner/setup_test.cpp
+
+      - name: Build real upstream cosigner_test with trusted descriptor fix
+        run: |
+          set -euo pipefail
+          cmake -S /tmp/mpc-lib -B /tmp/mpc-build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build /tmp/mpc-build --target cosigner_test -j2
+
+      - name: Run fix-specific negative and positive controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mpc-build/test/cosigner/cosigner_test             "[cmp-add-user-trusted-source-fix]" --success 2>&1 | tee /tmp/fix.log
+          grep -q '^TRUSTED_SOURCE_FIX_SUBSET_REJECTED=1$' /tmp/fix.log
+          grep -q '^TRUSTED_SOURCE_FIX_FORGED_CANONICAL_KEY_REJECTED=1$' /tmp/fix.log
+          grep -q '^TRUSTED_SOURCE_FIX_LEGITIMATE_COMPLETE_TRANSITION_ACCEPTED=1$' /tmp/fix.log
+          grep -q 'All tests passed' /tmp/fix.log
+
+      - name: Run legitimate CMP regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mpc-build/test/cosigner/cosigner_test "setup" 2>&1 | tee /tmp/setup.log
+          /tmp/mpc-build/test/cosigner/cosigner_test "add_user" 2>&1 | tee /tmp/add_user.log
+          /tmp/mpc-build/test/cosigner/cosigner_test "upgrade_key_to_cmp" 2>&1 | tee /tmp/upgrade.log
+          grep -q 'All tests passed' /tmp/setup.log
+          grep -q 'All tests passed' /tmp/add_user.log
+          grep -q 'All tests passed' /tmp/upgrade.log
+          echo "TRUSTED_SOURCE_DESCRIPTOR_FIX_BUILD=PASS"
+          echo "LEGITIMATE_CMP_REGRESSIONS=PASS"
