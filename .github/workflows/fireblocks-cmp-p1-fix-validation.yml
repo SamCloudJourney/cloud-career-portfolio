@@ -1,0 +1,106 @@
+name: Fireblocks CMP P1 minimal-fix validation
+
+on:
+  push:
+    branches:
+      - fireblocks-cmp-p1-fix-validation-20260924
+    paths:
+      - .github/workflows/fireblocks-cmp-p1-fix-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  fix-validation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout harness branch
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev uuid-dev libsecp256k1-dev
+
+      - name: Fetch exact Fireblocks current main
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mpc-lib
+          git init -q /tmp/mpc-lib
+          git -C /tmp/mpc-lib remote add origin https://github.com/fireblocks/mpc-lib.git
+          git -C /tmp/mpc-lib fetch -q --depth 1 origin 00ae08b7f1bdbb887aedece384aca2f942aae432
+          git -C /tmp/mpc-lib checkout -q FETCH_HEAD
+          test "$(git -C /tmp/mpc-lib rev-parse HEAD)" = "00ae08b7f1bdbb887aedece384aca2f942aae432"
+          git -C /tmp/mpc-lib rev-parse HEAD
+
+      - name: Apply two missing sibling invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("/tmp/mpc-lib/src/common/cosigner/cmp_setup_service.cpp")
+          s=p.read_text()
+
+          old='''    if (data.size() == 0)
+              {
+                  LOG_ERROR("Got empty add user data map");
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+          '''
+          new='''    if (data.size() < 2)
+              {
+                  LOG_ERROR("Got source parts from %u players, expected at least 2", (uint32_t)data.size());
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+          '''
+          if old not in s:
+              raise SystemExit("singleton guard anchor missing")
+          s=s.replace(old,new,1)
+
+          anchor='''    auto algebra = get_algebra(algorithm);
+
+              for (auto i = players_ids.begin(); i != players_ids.end(); ++i)
+          '''
+          repl='''    auto algebra = get_algebra(algorithm);
+
+              if (algebra->validate_non_infinity_point(algebra, &metadata.public_key) != ELLIPTIC_CURVE_ALGEBRA_SUCCESS)
+              {
+                  LOG_ERROR("key %s has an unset or invalid public key and cannot be redistributed", key_id.c_str());
+                  throw_cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+              }
+
+              for (auto i = players_ids.begin(); i != players_ids.end(); ++i)
+          '''
+          if anchor not in s:
+              raise SystemExit("non-infinity guard anchor missing")
+          s=s.replace(anchor,repl,1)
+          p.write_text(s)
+          PY
+          git -C /tmp/mpc-lib diff --check
+          git -C /tmp/mpc-lib diff -- src/common/cosigner/cmp_setup_service.cpp
+          grep -q 'data.size() < 2' /tmp/mpc-lib/src/common/cosigner/cmp_setup_service.cpp
+          grep -q 'cannot be redistributed' /tmp/mpc-lib/src/common/cosigner/cmp_setup_service.cpp
+
+      - name: Build real upstream cosigner_test with minimal fix
+        run: |
+          set -euo pipefail
+          cmake -S /tmp/mpc-lib -B /tmp/mpc-fix-build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build /tmp/mpc-fix-build --target cosigner_test -j2
+
+      - name: Run legitimate CMP setup and add-user regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mpc-fix-build/test/cosigner/cosigner_test "setup" --success 2>&1 | tee /tmp/setup.log
+          /tmp/mpc-fix-build/test/cosigner/cosigner_test "add_user" --success 2>&1 | tee /tmp/add_user.log
+          /tmp/mpc-fix-build/test/cosigner/cosigner_test "upgrade_key_to_cmp" --success 2>&1 | tee /tmp/upgrade.log
+          grep -q 'All tests passed' /tmp/setup.log
+          grep -q 'All tests passed' /tmp/add_user.log
+          grep -q 'All tests passed' /tmp/upgrade.log
+          echo 'MINIMAL_FIX_BUILD=PASS'
+          echo 'LEGITIMATE_SETUP_REGRESSION=PASS'
+          echo 'LEGITIMATE_ADD_USER_REGRESSION=PASS'
+          echo 'UPGRADE_KEY_TO_CMP_REGRESSION=PASS'
