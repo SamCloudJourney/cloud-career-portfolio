@@ -1,0 +1,33 @@
+name: Collect Encrypted Validation Result V2
+
+on:
+  push:
+    branches:
+      - msrc-signalr-poc-20260924
+    paths:
+      - .github/workflows/collect-encrypted-result-v2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: msrc-signalr-poc-20260924
+      - name: Assemble ciphertext
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p encrypted_result
+          cat runner_exchange/v2/result/result_payload.part* > encrypted_result/result_payload.b64
+          cp runner_exchange/v2/result/result_key.b64 encrypted_result/result_key.b64
+          cp runner_exchange/v2/result/result_status.txt encrypted_result/result_status.txt
+          wc -c encrypted_result/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-validation-result-v2
+          path: encrypted_result
+          if-no-files-found: error
