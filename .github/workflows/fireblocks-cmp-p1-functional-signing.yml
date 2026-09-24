@@ -108,3 +108,5 @@ jobs:
           test "$(grep -c '^MALICIOUS_SOURCE_NOT_IN_DESTINATION_SET=1$' /tmp/all-runs.log)" = "5"
           test "$(grep -c 'All tests passed' /tmp/all-runs.log)" = "5"
           echo "REAL_UPSTREAM_FUNCTIONAL_TRIALS=5/5_PASS"
+
+# gfpfireblocks-two-message-retry
