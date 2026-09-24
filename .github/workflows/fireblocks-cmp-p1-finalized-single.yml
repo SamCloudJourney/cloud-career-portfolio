@@ -1,0 +1,108 @@
+name: Fireblocks CMP finalized single-source P1
+
+on:
+  push:
+    branches:
+      - fireblocks-cmp-p1-finalized-single-20260924
+    paths:
+      - .github/workflows/fireblocks-cmp-p1-finalized-single.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fireblocks-cmp-p1-finalized-single-20260924
+          fetch-depth: 0
+
+      - name: Publish ephemeral payload key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runner_exchange/fireblocks_cmp_finalized_single
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out /tmp/source_private.pem >/dev/null 2>&1
+          openssl pkey -in /tmp/source_private.pem -pubout -out runner_exchange/fireblocks_cmp_finalized_single/source_public.pem >/dev/null 2>&1
+          git config user.name "fireblocks-finalized-single-validator"
+          git config user.email "fireblocks-finalized-single-validator@users.noreply.github.com"
+          git add runner_exchange/fireblocks_cmp_finalized_single/source_public.pem
+          git commit -m "Publish finalized-single ephemeral key [skip ci]" >/dev/null
+          git push origin HEAD:fireblocks-cmp-p1-finalized-single-20260924 >/dev/null
+
+      - name: Wait for encrypted payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for i in $(seq 1 300); do
+            git fetch origin fireblocks-cmp-p1-finalized-single-20260924 --quiet
+            ok=1
+            for f in payload.b64 payload_key.b64; do
+              git show "origin/fireblocks-cmp-p1-finalized-single-20260924:runner_exchange/fireblocks_cmp_finalized_single/$f" > "/tmp/$f" 2>/dev/null || ok=0
+            done
+            if [ "$ok" = "1" ]; then found=1; break; fi
+            sleep 2
+          done
+          test "$found" = "1"
+
+      - name: Decrypt payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d /tmp/payload_key.b64 > /tmp/payload_key.enc
+          base64 -d /tmp/payload.b64 > /tmp/payload.enc
+          openssl pkeyutl -decrypt -inkey /tmp/source_private.pem             -in /tmp/payload_key.enc -out /tmp/payload_keyiv.bin             -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256
+          KEY=$(dd if=/tmp/payload_keyiv.bin bs=1 count=32 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          IV=$(dd if=/tmp/payload_keyiv.bin bs=1 skip=32 count=16 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          openssl enc -d -aes-256-cbc -K "$KEY" -iv "$IV" -in /tmp/payload.enc -out /tmp/payload.zip
+          unzip -t /tmp/payload.zip >/dev/null
+          rm -rf /tmp/poc && mkdir /tmp/poc
+          unzip -q /tmp/payload.zip -d /tmp/poc
+          sha256sum /tmp/poc/test_fragment.cpp
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev uuid-dev libsecp256k1-dev
+
+      - name: Fetch exact Fireblocks current main
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mpc-lib
+          git init -q /tmp/mpc-lib
+          git -C /tmp/mpc-lib remote add origin https://github.com/fireblocks/mpc-lib.git
+          git -C /tmp/mpc-lib fetch -q --depth 1 origin 00ae08b7f1bdbb887aedece384aca2f942aae432
+          git -C /tmp/mpc-lib checkout -q FETCH_HEAD
+          test "$(git -C /tmp/mpc-lib rev-parse HEAD)" = "00ae08b7f1bdbb887aedece384aca2f942aae432"
+          cat /tmp/poc/test_fragment.cpp >> /tmp/mpc-lib/test/cosigner/ecdsa_online_test.cpp
+          git -C /tmp/mpc-lib diff --check
+
+      - name: Build real upstream cosigner_test
+        run: |
+          set -euo pipefail
+          cmake -S /tmp/mpc-lib -B /tmp/mpc-build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build /tmp/mpc-build --target cosigner_test -j2
+
+      - name: Execute finalized single-source attack three times
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/all.log
+          for i in 1 2 3; do
+            echo "===== FINALIZED_SINGLE_TRIAL=$i =====" | tee -a /tmp/all.log
+            /tmp/mpc-build/test/cosigner/cosigner_test               "cmp finalized single malicious source forges expected public key" --success               2>&1 | tee -a /tmp/all.log
+          done
+          test "$(grep -c '^P1_FINALIZED_SINGLE_SOURCE_CONFIRMED=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^SOURCE_KEY_FULLY_FINALIZED=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^MALICIOUS_SOURCE_COUNT=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^HONEST_SOURCE_B_C_WITHHELD=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^HONEST_DESTINATION_CMP_SIGNATURE_VERIFIES=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^ATTACKER_SOLO_SIGNATURE_VERIFIES=1$' /tmp/all.log)" = "3"
+          test "$(grep -c '^NO_SETUP_TIMING_WINDOW_REQUIRED=1$' /tmp/all.log)" = "3"
+          test "$(grep -c 'All tests passed' /tmp/all.log)" = "3"
+          echo "FINALIZED_SINGLE_SOURCE_UPSTREAM_TRIALS=3/3_PASS"
