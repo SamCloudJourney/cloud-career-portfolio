@@ -35,7 +35,9 @@ jobs:
           curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
           chmod +x /tmp/dotnet-install.sh
           /tmp/dotnet-install.sh             --runtime dotnet             --version 11.0.0-rc.2.26465.108             --install-dir /usr/share/dotnet             --skip-non-versioned-files
+          /tmp/dotnet-install.sh             --runtime aspnetcore             --version 11.0.0-rc.2.26465.108             --install-dir /usr/share/dotnet             --skip-non-versioned-files
           dotnet --list-runtimes | grep 'Microsoft.NETCore.App 11.0.0-rc.2.26465.108'
+          dotnet --list-runtimes | grep 'Microsoft.AspNetCore.App 11.0.0-rc.2.26465.108'
 
       - name: Record exact source
         shell: bash
