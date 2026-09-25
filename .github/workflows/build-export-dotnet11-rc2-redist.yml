@@ -1,0 +1,72 @@
+name: Build and export .NET 11 RC2 SDK redist
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/build-export-dotnet11-rc2-redist.yml'
+permissions:
+  contents: read
+
+jobs:
+  build-rc2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_TELEMETRY_SESSIONID: gha-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout Microsoft SDK RC2 branch
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/sdk
+          ref: release/11.0.1xx-rc2
+          fetch-depth: 1
+
+      - name: Install bootstrap SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+
+      - name: Record source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          grep -E '<PreReleaseVersionLabel>rc</PreReleaseVersionLabel>|<PreReleaseVersionIteration>2</PreReleaseVersionIteration>' eng/Versions.props
+
+      - name: Build RC2 SDK redist
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build.sh --configuration Release
+          test -x artifacts/bin/redist/Release/dotnet/dotnet
+          artifacts/bin/redist/Release/dotnet/dotnet --info | tee rc2-built-dotnet-info.txt
+
+      - name: Inspect built browser-tools payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          REDIST="$PWD/artifacts/bin/redist/Release/dotnet"
+          SDK_DIR="$(find "$REDIST/sdk" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
+          echo "$SDK_DIR" | tee rc2-sdk-dir.txt
+          find "$SDK_DIR" -path '*dotnet-watch*' -o -path '*StaticWebAssets*DotNetWatch*' | head -200 | tee rc2-browsertools-files.txt
+          grep -R -l "The browser generated secret, encrypted with the build-pinned public key" "$SDK_DIR" 2>/dev/null | head -20 | tee rc2-source-marker-files.txt || true
+
+      - name: Create portable RC2 redist bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          cp rc2-built-dotnet-info.txt rc2-sdk-dir.txt rc2-browsertools-files.txt export/
+          tar -C artifacts/bin/redist/Release -czf export/dotnet11-rc2-redist.tar.gz dotnet
+          sha256sum export/dotnet11-rc2-redist.tar.gz > export/dotnet11-rc2-redist.sha256
+          ls -lh export/dotnet11-rc2-redist.tar.gz
+
+      - name: Upload RC2 redist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet11-rc2-built-redist
+          path: export/
+          compression-level: 0
+          retention-days: 1
