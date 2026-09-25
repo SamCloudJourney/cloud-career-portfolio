@@ -50,8 +50,22 @@ jobs:
           REDIST="$PWD/artifacts/bin/redist/Release/dotnet"
           SDK_DIR="$(find "$REDIST/sdk" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)"
           echo "$SDK_DIR" | tee rc2-sdk-dir.txt
-          find "$SDK_DIR" -path '*dotnet-watch*' -o -path '*StaticWebAssets*DotNetWatch*' | head -200 | tee rc2-browsertools-files.txt
+          find "$SDK_DIR" \( -path '*dotnet-watch*' -o -path '*StaticWebAssets*DotNetWatch*' \) | sed -n '1,200p' | tee rc2-browsertools-files.txt
           grep -R -l "The browser generated secret, encrypted with the build-pinned public key" "$SDK_DIR" 2>/dev/null | head -20 | tee rc2-source-marker-files.txt || true
+
+      - name: Run BrowserTools static-web-asset integration tests against built redist
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          dotnet build test/Microsoft.NET.Sdk.StaticWebAssets.Tests/Microsoft.NET.Sdk.StaticWebAssets.Tests.csproj -c Release
+          TEST_APP=artifacts/bin/Microsoft.NET.Sdk.StaticWebAssets.Tests/Release/net11.0/Microsoft.NET.Sdk.StaticWebAssets.Tests
+          if [ -x "$TEST_APP" ]; then
+            "$TEST_APP" --filter "FullyQualifiedName~Microsoft.NET.Sdk.StaticWebAssets.Tests.DotNetWatchBrowserToolsIntegrationTest"               | tee export/static-assets-browsertools-tests.txt
+          else
+            dotnet artifacts/bin/Microsoft.NET.Sdk.StaticWebAssets.Tests/Release/net11.0/Microsoft.NET.Sdk.StaticWebAssets.Tests.dll               --filter "FullyQualifiedName~Microsoft.NET.Sdk.StaticWebAssets.Tests.DotNetWatchBrowserToolsIntegrationTest"               | tee export/static-assets-browsertools-tests.txt
+          fi
+          grep -E 'Test run summary: Passed|succeeded:' export/static-assets-browsertools-tests.txt
 
       - name: Create portable RC2 redist bundle
         shell: bash
