@@ -1,0 +1,16 @@
+name: Actions runner health check
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+permissions:
+  contents: read
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner started
+        run: |
+          echo "RUNNER_HEALTH_OK"
+          uname -a
+          dotnet --info || true
