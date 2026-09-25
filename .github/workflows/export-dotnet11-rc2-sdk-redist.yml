@@ -60,9 +60,12 @@ jobs:
           export PATH="$REDIST:$PATH"
           export DOTNET_MULTILEVEL_LOOKUP=0
           mkdir -p fixture
-          "$REDIST/dotnet" new web -n Rc2Victim -o fixture/app --no-restore
+          "$REDIST/dotnet" new blazor -n Rc2Victim -o fixture/app --no-restore
           "$REDIST/dotnet" restore fixture/app/Rc2Victim.csproj
           "$REDIST/dotnet" build fixture/app/Rc2Victim.csproj -c Debug --no-restore
+
+          find fixture/app/obj -type f -name '*BrowserTools.Config.js' -print             | tee evidence/generated-browser-tools-config-files.txt
+          test -s evidence/generated-browser-tools-config-files.txt
           cat fixture/app/Rc2Victim.csproj | tee evidence/fixture-project.txt
 
       - name: Smoke RC2 dotnet watch and generated BrowserTools config
@@ -99,14 +102,23 @@ jobs:
 
           curl -fsS http://127.0.0.1:5175/ >/dev/null
 
-          CONFIG_URL="http://127.0.0.1:5175/_framework/Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.BrowserTools.Config.js"
+          CONFIG_PATH="$(head -1 evidence/generated-browser-tools-config-files.txt)"
+          CONFIG_NAME="$(basename "$CONFIG_PATH")"
+          CONFIG_URL="http://127.0.0.1:5175/_framework/$CONFIG_NAME"
+          echo "config_url=$CONFIG_URL" | tee evidence/browser-tools-config-url.txt
+
           curl -fsS "$CONFIG_URL" -o evidence/browser-tools-config.js
           grep -E "publicKey:|connectPath:" evidence/browser-tools-config.js             | tee evidence/browser-tools-config-summary.txt
 
           SETTINGS="http://127.0.0.1:5175/_framework/dotnet-browser-tools/hot-reload-settings.json"
           curl -fsS "$SETTINGS" | tee evidence/hot-reload-settings.json
 
+          grep -q "publicKey:" evidence/browser-tools-config.js
+          grep -q "/_framework/dotnet-browser-tools/connect" evidence/browser-tools-config.js
+          echo RC2_BROWSER_TOOLS_CONFIG_HTTP_OK
+
       - name: Archive redist and fixture
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -117,6 +129,7 @@ jobs:
           ls -lh dotnet11-rc2-sdk-redist.tar.gz dotnet11-rc2-web-fixture.tar.gz
 
       - name: Upload RC2 redist
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dotnet11-rc2-sdk-redist
