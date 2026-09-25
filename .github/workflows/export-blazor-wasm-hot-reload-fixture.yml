@@ -1,0 +1,100 @@
+name: Export Blazor WASM hot-reload fixture
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/export-blazor-wasm-hot-reload-fixture.yml'
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Confirm exact SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = "10.0.401"
+          dotnet --info
+
+      - name: Create and build disposable Blazor WASM app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p fixture/app fixture/nuget
+          dotnet new blazorwasm -n WasmVictim -o fixture/app --framework net10.0 --no-restore
+          NUGET_PACKAGES="$HOME/.nuget/packages" dotnet restore fixture/app/WasmVictim.csproj
+          NUGET_PACKAGES="$HOME/.nuget/packages" dotnet build fixture/app/WasmVictim.csproj -c Debug --no-restore
+
+      - name: Copy exactly referenced NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, shutil
+          from pathlib import Path
+
+          assets = json.loads(Path("fixture/app/obj/project.assets.json").read_text())
+          source = Path.home()/".nuget"/"packages"
+          dest = Path("fixture/nuget")
+          copied=[]
+
+          for key, meta in sorted(assets.get("libraries", {}).items()):
+              if meta.get("type") != "package":
+                  continue
+              pkg, version = key.rsplit("/", 1)
+              src = source/pkg.lower()/version
+              dst = dest/pkg.lower()/version
+              if not src.exists():
+                  raise SystemExit(f"missing package cache entry: {src}")
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copytree(src, dst, dirs_exist_ok=True)
+              copied.append((pkg, version))
+
+          Path("fixture/PACKAGES.txt").write_text(
+              "\n".join(f"{p}/{v}" for p,v in copied) + "\n"
+          )
+          print(f"copied {len(copied)} package versions")
+          print(Path("fixture/PACKAGES.txt").read_text())
+          PY
+          du -sh fixture/app fixture/nuget
+
+      - name: Prove copied package cache supports offline rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > fixture/offline.nuget.config <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+            </packageSources>
+          </configuration>
+          XML
+
+          rm -rf fixture/app/bin fixture/app/obj
+          NUGET_PACKAGES="$GITHUB_WORKSPACE/fixture/nuget"             dotnet restore fixture/app/WasmVictim.csproj               --configfile fixture/offline.nuget.config               --ignore-failed-sources
+
+          NUGET_PACKAGES="$GITHUB_WORKSPACE/fixture/nuget"             dotnet build fixture/app/WasmVictim.csproj -c Debug --no-restore
+
+          echo OFFLINE_BLAZOR_FIXTURE_VALIDATED
+
+      - name: Archive fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C fixture -czf blazor-wasm-10.0.401-hot-reload-fixture.tar.gz app nuget PACKAGES.txt offline.nuget.config
+          sha256sum blazor-wasm-10.0.401-hot-reload-fixture.tar.gz > blazor-wasm-10.0.401-hot-reload-fixture.sha256
+          ls -lh blazor-wasm-10.0.401-hot-reload-fixture.tar.gz
+
+      - name: Upload fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: blazor-wasm-10.0.401-hot-reload-fixture
+          path: |
+            blazor-wasm-10.0.401-hot-reload-fixture.tar.gz
+            blazor-wasm-10.0.401-hot-reload-fixture.sha256
+          compression-level: 0
+          retention-days: 1
