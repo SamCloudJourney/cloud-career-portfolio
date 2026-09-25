@@ -1,0 +1,139 @@
+name: Cross-platform dotnet watch security controls
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/dotnet-watch-cross-platform-controls.yml'
+permissions:
+  contents: read
+
+jobs:
+  origin-controls:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Pin exact shipped SDK
+        shell: pwsh
+        run: |
+          @'
+          {
+            "sdk": {
+              "version": "10.0.401",
+              "rollForward": "disable"
+            }
+          }
+          '@ | Set-Content global.json
+          dotnet --info
+          if ((dotnet --version).Trim() -ne "10.0.401") {
+            throw "Expected SDK 10.0.401"
+          }
+
+      - name: Build disposable Blazor WASM application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .tmp,evidence | Out-Null
+          dotnet new blazorwasm -n Victim -o .tmp/Victim --framework net10.0 --no-restore
+          dotnet restore .tmp/Victim/Victim.csproj
+          dotnet build .tmp/Victim/Victim.csproj -c Debug --no-restore
+
+      - name: Start wildcard BrowserRefreshServer and validate patched Origin controls
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:DOTNET_NOLOGO = "1"
+          $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+          $env:DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER = "1"
+          $env:DOTNET_WATCH_AUTO_RELOAD_WS_HOSTNAME = "0.0.0.0"
+          $env:DOTNET_WATCH_AUTO_RELOAD_WS_PORT = "5168"
+
+          $out = Join-Path $PWD "evidence/watch.out.log"
+          $err = Join-Path $PWD "evidence/watch.err.log"
+
+          $proc = Start-Process dotnet -ArgumentList @(
+            "watch","run",
+            "--project",".tmp/Victim/Victim.csproj",
+            "--no-launch-profile",
+            "--",
+            "--urls","http://127.0.0.1:5170"
+          ) -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 120; $i++) {
+              if ($proc.HasExited) {
+                Get-Content $out -ErrorAction SilentlyContinue
+                Get-Content $err -ErrorAction SilentlyContinue
+                throw "dotnet watch exited early"
+              }
+
+              try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:5170/" -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) {
+                  $ready = $true
+                  break
+                }
+              } catch {}
+
+              Start-Sleep -Seconds 1
+            }
+
+            if (-not $ready) {
+              throw "Application did not become ready"
+            }
+
+            function Invoke-RawWebSocketHandshake([string] $Origin) {
+              $client = [System.Net.Sockets.TcpClient]::new()
+              try {
+                $client.Connect("127.0.0.1", 5168)
+                $stream = $client.GetStream()
+                $keyBytes = New-Object byte[] 16
+                [System.Security.Cryptography.RandomNumberGenerator]::Fill($keyBytes)
+                $key = [Convert]::ToBase64String($keyBytes)
+
+                $lines = [System.Collections.Generic.List[string]]::new()
+                $lines.Add("GET / HTTP/1.1")
+                $lines.Add("Host: 127.0.0.1:5168")
+                $lines.Add("Upgrade: websocket")
+                $lines.Add("Connection: Upgrade")
+                $lines.Add("Sec-WebSocket-Key: $key")
+                $lines.Add("Sec-WebSocket-Version: 13")
+                if ($Origin) {
+                  $lines.Add("Origin: $Origin")
+                }
+
+                $request = (($lines -join "`r`n") + "`r`n`r`n")
+                $bytes = [Text.Encoding]::ASCII.GetBytes($request)
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Flush()
+
+                $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
+                $firstLine = $reader.ReadLine()
+                return $firstLine
+              } finally {
+                $client.Dispose()
+              }
+            }
+
+            $missing = Invoke-RawWebSocketHandshake ""
+            $nonlocal = Invoke-RawWebSocketHandshake "https://nonlocal.invalid"
+
+            "missing_origin=$missing"
+            "nonlocal_origin=$nonlocal"
+
+            if ($missing -notmatch " 403 ") {
+              throw "Expected missing Origin to return 403, got: $missing"
+            }
+            if ($nonlocal -notmatch " 403 ") {
+              throw "Expected non-local Origin to return 403, got: $nonlocal"
+            }
+
+            "CROSS_PLATFORM_ORIGIN_CONTROLS_OK"
+          } finally {
+            if (-not $proc.HasExited) {
+              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
