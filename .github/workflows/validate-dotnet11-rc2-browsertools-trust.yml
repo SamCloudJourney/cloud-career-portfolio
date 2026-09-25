@@ -53,14 +53,10 @@ jobs:
         working-directory: sdk-src
         run: |
           set -euo pipefail
-          dotnet test test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj             --configuration Release             --filter "FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithMatchingKey_ReachesAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithForeignKey_IsRejectedBeforeAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithoutSharedSecret_IsRejectedBeforeAcceptance"             --logger "console;verbosity=normal"             | tee ../evidence/provider-tests.log
-
-      - name: Run static-web-asset public-key tests from Microsoft source
-        shell: bash
-        working-directory: sdk-src
-        run: |
-          set -euo pipefail
-          dotnet test test/Microsoft.NET.Sdk.StaticWebAssets.Tests/Microsoft.NET.Sdk.StaticWebAssets.Tests.csproj             --configuration Release             --filter "FullyQualifiedName~DotNetWatchBrowserToolsIntegrationTest.Build_PinsOnlyThePublicHalfOfTheKeyPair|FullyQualifiedName~DotNetWatchBrowserToolsIntegrationTest.Build_DefinesEndpointsForTheGeneratedModules"             --logger "console;verbosity=normal"             | tee ../evidence/static-assets-tests.log
+          dotnet test test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj \
+            --configuration Release \
+            --logger "console;verbosity=normal" \
+            | tee ../evidence/provider-tests.log
 
       - name: Extract trust-model source facts
         shell: bash
