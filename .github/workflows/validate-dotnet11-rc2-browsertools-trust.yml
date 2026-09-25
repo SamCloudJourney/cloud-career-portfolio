@@ -69,6 +69,27 @@ jobs:
             --filter "FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithMatchingKey_ReachesAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithForeignKey_IsRejectedBeforeAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithoutSharedSecret_IsRejectedBeforeAcceptance" \
             | tee ../evidence/provider-tests.log
 
+      - name: Build BrowserRefresh forwarding tests
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          dotnet build test/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests.csproj \
+            --configuration Release \
+            --nologo \
+            | tee ../evidence/forwarder-build.log
+
+      - name: Run Microsoft application-route forwarding control
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          TEST_DLL="artifacts/bin/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests/Release/net11.0/Microsoft.AspNetCore.Watch.BrowserRefresh.Tests.dll"
+          test -f "$TEST_DLL"
+          dotnet exec "$TEST_DLL" \
+            --filter "FullyQualifiedName~HostingStartupTest.HotReloadSettings_IsForwardedToTheProvider" \
+            | tee ../evidence/forwarder-test.log
+
       - name: Extract trust-model source facts
         if: always()
         shell: bash
