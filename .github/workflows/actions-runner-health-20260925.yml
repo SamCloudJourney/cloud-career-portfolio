@@ -99,6 +99,77 @@ jobs:
           print("ORIGIN_NEGATIVE_CONTROLS_OK")
           PY
 
+      - name: App-middleware control — protected app does not protect injected refresh script
+        run: |
+          set -euo pipefail
+
+          mkdir -p .tmp/AuthVictim evidence-auth
+
+          cat > .tmp/AuthVictim/AuthVictim.csproj <<'XML'
+          <Project Sdk="Microsoft.NET.Sdk.Web">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+          </Project>
+          XML
+
+          cat > .tmp/AuthVictim/Program.cs <<'CS'
+          var builder = WebApplication.CreateBuilder(args);
+          var app = builder.Build();
+
+          app.Use(async (context, next) =>
+          {
+              if (!string.Equals(context.Request.Headers["X-Lab-Auth"], "ok", StringComparison.Ordinal))
+              {
+                  context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                  return;
+              }
+
+              await next();
+          });
+
+          app.MapGet("/", () => "AUTHENTICATED_APP");
+          app.Run();
+          CS
+
+          DOTNET_WATCH_AUTO_RELOAD_WS_PORT=5169           nohup dotnet watch run             --project .tmp/AuthVictim/AuthVictim.csproj             --no-launch-profile             --             --urls http://127.0.0.1:5171             > evidence-auth/watch.log 2>&1 &
+          echo $! > evidence-auth/watch.pid
+
+          for i in $(seq 1 90); do
+            ROOT_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:5171/ || true)"
+            if [ "$ROOT_STATUS" = "401" ]; then
+              break
+            fi
+            if ! kill -0 "$(cat evidence-auth/watch.pid)" 2>/dev/null; then
+              cat evidence-auth/watch.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          ROOT_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:5171/)"
+          AUTH_STATUS="$(curl -sS -H 'X-Lab-Auth: ok' -o /dev/null -w '%{http_code}' http://127.0.0.1:5171/)"
+          SCRIPT_STATUS="$(curl -sS -o evidence-auth/browser-refresh.js -w '%{http_code}' http://127.0.0.1:5171/_framework/aspnetcore-browser-refresh.js)"
+
+          echo "root_without_auth=$ROOT_STATUS"
+          echo "root_with_auth=$AUTH_STATUS"
+          echo "refresh_script_without_auth=$SCRIPT_STATUS"
+
+          test "$ROOT_STATUS" = "401"
+          test "$AUTH_STATUS" = "200"
+          test "$SCRIPT_STATUS" = "200"
+
+          grep -q "webSocketUrls" evidence-auth/browser-refresh.js
+          grep -q "getSecret" evidence-auth/browser-refresh.js
+
+          echo "HOSTING_STARTUP_AUTH_BYPASS_CONTROL_CONFIRMED"
+
+          kill "$(cat evidence-auth/watch.pid)" 2>/dev/null || true
+          sleep 1
+          kill -9 "$(cat evidence-auth/watch.pid)" 2>/dev/null || true
+
       - name: Stop disposable watcher
         if: always()
         run: |
