@@ -1,0 +1,99 @@
+name: Validate .NET 11 RC2 BrowserTools trust model
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/validate-dotnet11-rc2-browsertools-trust.yml'
+permissions:
+  contents: read
+
+jobs:
+  rc2-source-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout harness repo
+        uses: actions/checkout@v4
+
+      - name: Checkout Microsoft SDK RC2 branch
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/sdk
+          ref: release/11.0.1xx-rc2
+          path: sdk-src
+          fetch-depth: 1
+
+      - name: Install branch bootstrap SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+
+      - name: Record exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git -C sdk-src rev-parse HEAD | tee evidence/sdk-rc2-source-sha.txt
+          dotnet --info > evidence/bootstrap-dotnet-info.txt
+          grep -E '<PreReleaseVersionLabel>rc</PreReleaseVersionLabel>|<PreReleaseVersionIteration>2</PreReleaseVersionIteration>' sdk-src/eng/Versions.props             | tee evidence/rc2-version-lines.txt
+
+      - name: Run provider credential tests from Microsoft source
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          dotnet test test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj             --configuration Release             --filter "FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithMatchingKey_ReachesAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithForeignKey_IsRejectedBeforeAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithoutSharedSecret_IsRejectedBeforeAcceptance"             --logger "console;verbosity=normal"             | tee ../evidence/provider-tests.log
+
+      - name: Run static-web-asset public-key tests from Microsoft source
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          dotnet test test/Microsoft.NET.Sdk.StaticWebAssets.Tests/Microsoft.NET.Sdk.StaticWebAssets.Tests.csproj             --configuration Release             --filter "FullyQualifiedName~DotNetWatchBrowserToolsIntegrationTest.Build_PinsOnlyThePublicHalfOfTheKeyPair|FullyQualifiedName~DotNetWatchBrowserToolsIntegrationTest.Build_DefinesEndpointsForTheGeneratedModules"             --logger "console;verbosity=normal"             | tee ../evidence/static-assets-tests.log
+
+      - name: Extract trust-model source facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("sdk-src")
+          router_test = (root/"test/Microsoft.Extensions.DotNetDeltaApplier.Tests/BrowserToolsEndpointRouterTests.cs").read_text()
+          targets = (root/"src/StaticWebAssetsSdk/Targets/Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets").read_text()
+          hosting = (root/"src/Dotnet.Watch/Web.Middleware/HostingStartup.cs").read_text()
+          forwarder = (root/"src/Dotnet.Watch/Web.Middleware/BrowserToolsForwarder.cs").read_text()
+          server = (root/"src/Dotnet.Watch/HotReloadClient/Web/AbstractBrowserRefreshServer.cs").read_text()
+
+          assertions = {
+              "matching_key_test_imports_public_key": "ImportSubjectPublicKeyInfo(Convert.FromBase64String(key.GetPublicKey())" in router_test,
+              "matching_key_test_generates_random_secret": "RandomNumberGenerator.GetBytes(32)" in router_test,
+              "matching_key_reaches_acceptance": "Connect_WebSocketWithMatchingKey_ReachesAcceptance" in router_test,
+              "config_embeds_public_key": ".Replace('__PUBLIC_KEY__'" in targets,
+              "config_is_static_web_asset": "_DotNetWatchBrowserToolsClientModule" in targets and "DefineStaticWebAssets" in targets,
+              "connect_route_precedes_app_pipeline": "app.MapWhen(" in hosting and "next(app);" in hosting,
+              "forwarder_copies_subprotocols": "foreach (var protocol in context.WebSockets.WebSocketRequestedProtocols)" in forwarder,
+              "forwarder_copies_origin": 'CopyWebSocketRequestHeader(context, providerSocket.Options, "Origin")' in forwarder,
+              "provider_calls_ciphertext_only_credential": "the only\n            // credential" in server or "the only" in server and "credential" in server,
+          }
+
+          failed = [k for k,v in assertions.items() if not v]
+          for k,v in assertions.items():
+              print(f"{k}={str(v).lower()}")
+
+          Path("evidence/trust-model-assertions.txt").write_text(
+              "\n".join(f"{k}={str(v).lower()}" for k,v in assertions.items()) + "\n"
+          )
+
+          if failed:
+              raise SystemExit("failed assertions: " + ", ".join(failed))
+          PY
+
+      - name: Upload RC2 source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet11-rc2-browsertools-trust-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
