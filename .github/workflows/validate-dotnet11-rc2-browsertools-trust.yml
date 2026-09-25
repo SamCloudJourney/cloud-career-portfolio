@@ -59,6 +59,7 @@ jobs:
             | tee ../evidence/provider-tests.log
 
       - name: Extract trust-model source facts
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
