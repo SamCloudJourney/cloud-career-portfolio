@@ -1,0 +1,130 @@
+name: Export .NET 11 RC2 SDK redist for BrowserTools validation
+
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/export-dotnet11-rc2-sdk-redist.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-redist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout harness
+        uses: actions/checkout@v4
+
+      - name: Checkout Microsoft SDK RC2 branch
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/sdk
+          ref: release/11.0.1xx-rc2
+          path: sdk-src
+          fetch-depth: 1
+
+      - name: Record source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git -C sdk-src rev-parse HEAD | tee evidence/sdk-rc2-source-sha.txt
+          grep -E '<PreReleaseVersionLabel>rc</PreReleaseVersionLabel>|<PreReleaseVersionIteration>2</PreReleaseVersionIteration>' sdk-src/eng/Versions.props             | tee evidence/rc2-version-lines.txt
+
+      - name: Build Microsoft SDK RC2 redist
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          ./build.sh -c Release             | tee ../evidence/sdk-build.log
+
+      - name: Validate built redist
+        shell: bash
+        run: |
+          set -euo pipefail
+          REDIST="$GITHUB_WORKSPACE/sdk-src/artifacts/bin/redist/Release/dotnet"
+          test -x "$REDIST/dotnet"
+          "$REDIST/dotnet" --info | tee evidence/redist-dotnet-info.txt
+          "$REDIST/dotnet" --list-sdks | tee evidence/redist-sdks.txt
+          find "$REDIST/sdk" -path '*DotnetTools/dotnet-watch*' -maxdepth 8 -type f | head -80             | tee evidence/dotnet-watch-layout.txt
+          grep -R -l "dotnet-browser-tools" "$REDIST/sdk" | head -40             | tee evidence/browser-tools-layout.txt
+
+      - name: Create RC2 disposable web fixture using built SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          REDIST="$GITHUB_WORKSPACE/sdk-src/artifacts/bin/redist/Release/dotnet"
+          export DOTNET_ROOT="$REDIST"
+          export PATH="$REDIST:$PATH"
+          export DOTNET_MULTILEVEL_LOOKUP=0
+          mkdir -p fixture
+          "$REDIST/dotnet" new web -n Rc2Victim -o fixture/app --no-restore
+          "$REDIST/dotnet" restore fixture/app/Rc2Victim.csproj
+          "$REDIST/dotnet" build fixture/app/Rc2Victim.csproj -c Debug --no-restore
+          cat fixture/app/Rc2Victim.csproj | tee evidence/fixture-project.txt
+
+      - name: Smoke RC2 dotnet watch and generated BrowserTools config
+        shell: bash
+        run: |
+          set -euo pipefail
+          REDIST="$GITHUB_WORKSPACE/sdk-src/artifacts/bin/redist/Release/dotnet"
+          export DOTNET_ROOT="$REDIST"
+          export PATH="$REDIST:$PATH"
+          export DOTNET_MULTILEVEL_LOOKUP=0
+          export DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
+
+          nohup "$REDIST/dotnet" watch run             --project fixture/app/Rc2Victim.csproj             --no-launch-profile             --             --urls http://127.0.0.1:5175             > evidence/watch-smoke.log 2>&1 &
+          PID=$!
+          echo "$PID" > evidence/watch.pid
+
+          cleanup() {
+            kill "$PID" 2>/dev/null || true
+            sleep 1
+            kill -9 "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:5175/ >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              cat evidence/watch-smoke.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:5175/ >/dev/null
+
+          CONFIG_URL="http://127.0.0.1:5175/_framework/Microsoft.NET.Sdk.BlazorWeb.DotNetWatch.BrowserTools.Config.js"
+          curl -fsS "$CONFIG_URL" -o evidence/browser-tools-config.js
+          grep -E "publicKey:|connectPath:" evidence/browser-tools-config.js             | tee evidence/browser-tools-config-summary.txt
+
+          SETTINGS="http://127.0.0.1:5175/_framework/dotnet-browser-tools/hot-reload-settings.json"
+          curl -fsS "$SETTINGS" | tee evidence/hot-reload-settings.json
+
+      - name: Archive redist and fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C sdk-src/artifacts/bin/redist/Release             -czf dotnet11-rc2-sdk-redist.tar.gz dotnet
+          tar -czf dotnet11-rc2-web-fixture.tar.gz fixture
+          sha256sum dotnet11-rc2-sdk-redist.tar.gz > dotnet11-rc2-sdk-redist.sha256
+          sha256sum dotnet11-rc2-web-fixture.tar.gz > dotnet11-rc2-web-fixture.sha256
+          ls -lh dotnet11-rc2-sdk-redist.tar.gz dotnet11-rc2-web-fixture.tar.gz
+
+      - name: Upload RC2 redist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet11-rc2-sdk-redist
+          path: |
+            dotnet11-rc2-sdk-redist.tar.gz
+            dotnet11-rc2-sdk-redist.sha256
+            dotnet11-rc2-web-fixture.tar.gz
+            dotnet11-rc2-web-fixture.sha256
+            evidence/
+          compression-level: 0
+          retention-days: 2
