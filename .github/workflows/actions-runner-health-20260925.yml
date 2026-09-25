@@ -4,13 +4,107 @@ on:
     branches: [actions-runner-health-20260925]
 permissions:
   contents: read
+
 jobs:
   health:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: '1'
+      DOTNET_WATCH_AUTO_RELOAD_WS_HOSTNAME: '0.0.0.0'
+      DOTNET_WATCH_AUTO_RELOAD_WS_PORT: '5168'
+      APP_URL: 'http://127.0.0.1:5170'
     steps:
-      - name: Runner started
+      - name: Runner and SDK health
         run: |
+          set -euo pipefail
           echo "RUNNER_HEALTH_OK"
           uname -a
-          dotnet --info || true
+          dotnet --info
+          test "$(dotnet --version)" = "10.0.401"
+
+      - name: Create and build disposable Blazor WebAssembly app
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp evidence
+          cat > global.json <<'JSON'
+          {
+            "sdk": {
+              "version": "10.0.401",
+              "rollForward": "disable"
+            }
+          }
+          JSON
+          dotnet new blazorwasm -n Victim -o .tmp/Victim --framework net10.0 --no-restore
+          dotnet restore .tmp/Victim/Victim.csproj
+          dotnet build .tmp/Victim/Victim.csproj -c Debug --no-restore
+
+      - name: Start dotnet watch and capture BrowserRefreshServer
+        run: |
+          set -euo pipefail
+          nohup dotnet watch run             --project .tmp/Victim/Victim.csproj             --no-launch-profile             --             --urls "$APP_URL"             > evidence/watch.log 2>&1 &
+          echo $! > evidence/watch.pid
+
+          for i in $(seq 1 90); do
+            if curl -fsS "$APP_URL/" >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$(cat evidence/watch.pid)" 2>/dev/null; then
+              echo "dotnet watch exited early"
+              cat evidence/watch.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl -fsS "$APP_URL/" >/dev/null
+          curl -fsS "$APP_URL/_framework/aspnetcore-browser-refresh.js" > evidence/browser-refresh.js
+          ss -ltnp | tee evidence/listeners.txt
+          grep -E '(:5168\b|0\.0\.0\.0:5168|\*:5168)' evidence/listeners.txt
+
+      - name: Published-fix controls reject missing and non-local Origin
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, os, socket
+
+          HOST = "127.0.0.1"
+          PORT = 5168
+
+          def attempt(origin):
+              key = base64.b64encode(os.urandom(16)).decode()
+              lines = [
+                  "GET / HTTP/1.1",
+                  f"Host: {HOST}:{PORT}",
+                  "Upgrade: websocket",
+                  "Connection: Upgrade",
+                  f"Sec-WebSocket-Key: {key}",
+                  "Sec-WebSocket-Version: 13",
+              ]
+              if origin is not None:
+                  lines.append(f"Origin: {origin}")
+              request = ("\r\n".join(lines) + "\r\n\r\n").encode()
+              with socket.create_connection((HOST, PORT), timeout=5) as s:
+                  s.sendall(request)
+                  response = s.recv(4096).decode("latin1", errors="replace")
+              first = response.splitlines()[0] if response else "<empty>"
+              print(f"origin={origin!r} -> {first}")
+              if " 403 " not in first:
+                  raise SystemExit(f"Expected 403, got {first}")
+
+          attempt(None)
+          attempt("https://nonlocal.invalid")
+          print("ORIGIN_NEGATIVE_CONTROLS_OK")
+          PY
+
+      - name: Stop disposable watcher
+        if: always()
+        run: |
+          if [ -f evidence/watch.pid ]; then
+            kill "$(cat evidence/watch.pid)" 2>/dev/null || true
+            sleep 1
+            kill -9 "$(cat evidence/watch.pid)" 2>/dev/null || true
+          fi
+          pkill -f 'dotnet-watch' 2>/dev/null || true
