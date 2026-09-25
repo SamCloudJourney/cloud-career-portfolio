@@ -53,8 +53,22 @@ jobs:
               shutil.copytree(src, dst, dirs_exist_ok=True)
               copied.append((pkg, version))
 
+          # WebAssembly runtime pack is resolved by the SDK during build and may not
+          # appear as a normal package library entry in project.assets.json.
+          for pkg, version in [
+              ("Microsoft.NETCore.App.Runtime.Mono.browser-wasm", "10.0.12"),
+          ]:
+              src = source/pkg.lower()/version
+              dst = dest/pkg.lower()/version
+              if not src.exists():
+                  raise SystemExit(f"missing WebAssembly runtime pack: {src}")
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copytree(src, dst, dirs_exist_ok=True)
+              if (pkg, version) not in copied:
+                  copied.append((pkg, version))
+
           Path("fixture/PACKAGES.txt").write_text(
-              "\n".join(f"{p}/{v}" for p,v in copied) + "\n"
+              "\n".join(f"{p}/{v}" for p,v in sorted(copied)) + "\n"
           )
           print(f"copied {len(copied)} package versions")
           print(Path("fixture/PACKAGES.txt").read_text())
