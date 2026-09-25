@@ -48,14 +48,25 @@ jobs:
           dotnet --info > evidence/bootstrap-dotnet-info.txt
           grep -E '<PreReleaseVersionLabel>rc</PreReleaseVersionLabel>|<PreReleaseVersionIteration>2</PreReleaseVersionIteration>' sdk-src/eng/Versions.props             | tee evidence/rc2-version-lines.txt
 
-      - name: Run provider credential tests from Microsoft source
+      - name: Build provider tests from Microsoft source
         shell: bash
         working-directory: sdk-src
         run: |
           set -euo pipefail
-          dotnet test test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj \
+          dotnet build test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj \
             --configuration Release \
-            --logger "console;verbosity=normal" \
+            --nologo \
+            | tee ../evidence/provider-build.log
+
+      - name: Run exact Microsoft BrowserTools provider tests
+        shell: bash
+        working-directory: sdk-src
+        run: |
+          set -euo pipefail
+          TEST_DLL="artifacts/bin/Microsoft.Extensions.DotNetDeltaApplier.Tests/Release/net11.0/Microsoft.Extensions.DotNetDeltaApplier.Tests.dll"
+          test -f "$TEST_DLL"
+          dotnet exec "$TEST_DLL" \
+            --filter "FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithMatchingKey_ReachesAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithForeignKey_IsRejectedBeforeAcceptance|FullyQualifiedName~BrowserToolsEndpointRouterTests.Connect_WebSocketWithoutSharedSecret_IsRejectedBeforeAcceptance" \
             | tee ../evidence/provider-tests.log
 
       - name: Extract trust-model source facts
