@@ -1,0 +1,134 @@
+name: Export exact .NET 10.0.401 lab bundle
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/export-dotnet-10-lab-bundle.yml'
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Confirm exact SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = "10.0.401"
+          dotnet --info
+
+      - name: Create disposable framework-only web app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bundle/app bundle/dotnet
+          dotnet new web -n Victim -o bundle/app --framework net10.0 --no-restore
+          dotnet restore bundle/app/Victim.csproj
+          dotnet build bundle/app/Victim.csproj -c Debug --no-restore
+
+      - name: Assemble minimal exact SDK/runtime tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/usr/share/dotnet
+          DEST="$GITHUB_WORKSPACE/bundle/dotnet"
+
+          install -m 755 "$ROOT/dotnet" "$DEST/dotnet"
+
+          mkdir -p "$DEST/host/fxr"
+          cp -a "$ROOT/host/fxr/10.0.12" "$DEST/host/fxr/"
+
+          mkdir -p "$DEST/shared/Microsoft.NETCore.App" "$DEST/shared/Microsoft.AspNetCore.App"
+          cp -a "$ROOT/shared/Microsoft.NETCore.App/10.0.12" "$DEST/shared/Microsoft.NETCore.App/"
+          cp -a "$ROOT/shared/Microsoft.AspNetCore.App/10.0.12" "$DEST/shared/Microsoft.AspNetCore.App/"
+
+          mkdir -p "$DEST/sdk"
+          cp -a "$ROOT/sdk/10.0.401" "$DEST/sdk/"
+
+          mkdir -p "$DEST/packs"
+          for p in             Microsoft.NETCore.App.Ref             Microsoft.AspNetCore.App.Ref             Microsoft.NETCore.App.Host.linux-x64; do
+            if [ -d "$ROOT/packs/$p/10.0.12" ]; then
+              mkdir -p "$DEST/packs/$p"
+              cp -a "$ROOT/packs/$p/10.0.12" "$DEST/packs/$p/"
+            fi
+          done
+
+          if [ -d "$ROOT/sdk-manifests/10.0.100" ]; then
+            mkdir -p "$DEST/sdk-manifests"
+            cp -a "$ROOT/sdk-manifests/10.0.100" "$DEST/sdk-manifests/"
+          fi
+
+          if [ -d "$ROOT/templates/10.0.12" ]; then
+            mkdir -p "$DEST/templates"
+            cp -a "$ROOT/templates/10.0.12" "$DEST/templates/"
+          fi
+
+          du -sh "$DEST" bundle/app
+          find "$DEST" -maxdepth 3 -type d | sort | head -100
+
+      - name: Validate bundle without machine-wide dotnet
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export DOTNET_ROOT="$GITHUB_WORKSPACE/bundle/dotnet"
+          export PATH="$DOTNET_ROOT:$PATH"
+          export DOTNET_MULTILEVEL_LOOKUP=0
+          export DOTNET_NOLOGO=1
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1
+          export DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
+          export DOTNET_WATCH_AUTO_RELOAD_WS_HOSTNAME=127.0.0.1
+          export DOTNET_WATCH_AUTO_RELOAD_WS_PORT=5168
+
+          "$DOTNET_ROOT/dotnet" --info
+          test "$("$DOTNET_ROOT/dotnet" --version)" = "10.0.401"
+
+          nohup "$DOTNET_ROOT/dotnet" watch run             --project "$GITHUB_WORKSPACE/bundle/app/Victim.csproj"             --no-launch-profile             --             --urls http://127.0.0.1:5170             > bundle/watch-validation.log 2>&1 &
+          PID=$!
+
+          cleanup() {
+            kill "$PID" 2>/dev/null || true
+            sleep 1
+            kill -9 "$PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:5170/ >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              cat bundle/watch-validation.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:5170/ >/dev/null
+          python3 - <<'PY'
+          import socket
+          with socket.create_connection(("127.0.0.1", 5168), timeout=5):
+              print("PORTABLE_BUNDLE_BROWSER_REFRESH_LISTENER_OK")
+          PY
+
+          echo PORTABLE_BUNDLE_VALIDATED
+
+      - name: Archive portable bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C bundle -czf dotnet-10.0.401-lab-bundle.tar.gz dotnet app
+          ls -lh dotnet-10.0.401-lab-bundle.tar.gz
+          sha256sum dotnet-10.0.401-lab-bundle.tar.gz > dotnet-10.0.401-lab-bundle.sha256
+
+      - name: Upload portable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-10.0.401-lab-bundle
+          path: |
+            dotnet-10.0.401-lab-bundle.tar.gz
+            dotnet-10.0.401-lab-bundle.sha256
+          compression-level: 0
+          retention-days: 1
