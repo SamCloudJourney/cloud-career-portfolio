@@ -1,0 +1,60 @@
+name: Split RC2 redist artifact for private materialization
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/split-rc2-redist-artifact.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download exact previously built artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api             -H "Accept: application/vnd.github+json"             /repos/SamCloudJourney/cloud-career-portfolio/actions/artifacts/10875005317/zip             > source.zip
+          sha256sum source.zip | tee source.zip.sha256
+          ls -lh source.zip
+
+      - name: Split archive
+        run: |
+          set -euo pipefail
+          mkdir parts
+          split -b 45M -d -a 2 source.zip parts/part-
+          ls -lh parts
+          sha256sum parts/* > parts/SHA256SUMS
+          test "$(find parts -maxdepth 1 -type f -name 'part-*' | wc -l)" -le 11
+
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-00, path: parts/part-00, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-01, path: parts/part-01, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-02, path: parts/part-02, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-03, path: parts/part-03, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-04, path: parts/part-04, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-05, path: parts/part-05, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-06, path: parts/part-06, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-07, path: parts/part-07, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-08, path: parts/part-08, compression-level: 0, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: rc2-redist-part-09, path: parts/part-09, compression-level: 0, retention-days: 1 }
+      - name: Upload hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc2-redist-split-hashes
+          path: |
+            source.zip.sha256
+            parts/SHA256SUMS
+          retention-days: 1
