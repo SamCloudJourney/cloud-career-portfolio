@@ -16,6 +16,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
+      - name: Install exact SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+
       - name: Pin exact shipped SDK
         shell: pwsh
         run: |
