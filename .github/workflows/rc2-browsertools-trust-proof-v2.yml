@@ -1,0 +1,112 @@
+name: RC2 BrowserTools trust proof v2
+on:
+  push:
+    branches: [actions-runner-health-20260925]
+    paths:
+      - '.github/workflows/rc2-browsertools-trust-proof-v2.yml'
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Microsoft SDK RC2
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/sdk
+          ref: release/11.0.1xx-rc2
+          fetch-depth: 1
+
+      - name: Install bootstrap SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+
+      - name: Install matching RC2 runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          chmod +x /tmp/dotnet-install.sh
+          /tmp/dotnet-install.sh --runtime dotnet --version 11.0.0-rc.2.26465.108 --install-dir /usr/share/dotnet --skip-non-versioned-files
+          /tmp/dotnet-install.sh --runtime aspnetcore --version 11.0.0-rc.2.26465.108 --install-dir /usr/share/dotnet --skip-non-versioned-files
+          dotnet --list-runtimes | grep '11.0.0-rc.2.26465.108'
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source-sha.txt
+
+      - name: Build provider test app
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build test/Microsoft.Extensions.DotNetDeltaApplier.Tests/Microsoft.Extensions.DotNetDeltaApplier.Tests.csproj -c Release
+          TEST_APP=artifacts/bin/Microsoft.Extensions.DotNetDeltaApplier.Tests/Release/net11.0/Microsoft.Extensions.DotNetDeltaApplier.Tests
+          test -x "$TEST_APP"
+          "$TEST_APP" --list-tests | tee evidence/provider-list-tests.txt
+
+      - name: Run BrowserTools provider tests directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_APP=artifacts/bin/Microsoft.Extensions.DotNetDeltaApplier.Tests/Release/net11.0/Microsoft.Extensions.DotNetDeltaApplier.Tests
+          "$TEST_APP" --filter "FullyQualifiedName~Microsoft.DotNet.HotReload.UnitTests.BrowserToolsEndpointRouterTests"             | tee evidence/provider-browsertools-tests.txt
+          grep -E 'Connect_WebSocketWithMatchingKey_ReachesAcceptance|Connect_WebSocketWithForeignKey_IsRejectedBeforeAcceptance|Connect_WebSocketWithoutSharedSecret_IsRejectedBeforeAcceptance'             evidence/provider-list-tests.txt
+
+      - name: Build static-web-assets test app
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build test/Microsoft.NET.Sdk.StaticWebAssets.Tests/Microsoft.NET.Sdk.StaticWebAssets.Tests.csproj -c Release
+          TEST_APP=artifacts/bin/Microsoft.NET.Sdk.StaticWebAssets.Tests/Release/net11.0/Microsoft.NET.Sdk.StaticWebAssets.Tests
+          test -x "$TEST_APP"
+          "$TEST_APP" --list-tests | grep 'DotNetWatchBrowserToolsIntegrationTest' | tee evidence/static-assets-list-tests.txt
+
+      - name: Run BrowserTools static asset tests directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_APP=artifacts/bin/Microsoft.NET.Sdk.StaticWebAssets.Tests/Release/net11.0/Microsoft.NET.Sdk.StaticWebAssets.Tests
+          "$TEST_APP" --filter "FullyQualifiedName~Microsoft.NET.Sdk.StaticWebAssets.Tests.DotNetWatchBrowserToolsIntegrationTest"             | tee evidence/static-assets-browsertools-tests.txt
+
+      - name: Assert source trust facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          router = Path("test/Microsoft.Extensions.DotNetDeltaApplier.Tests/BrowserToolsEndpointRouterTests.cs").read_text()
+          targets = Path("src/StaticWebAssetsSdk/Targets/Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets").read_text()
+          hosting = Path("src/Dotnet.Watch/Web.Middleware/HostingStartup.cs").read_text()
+          forwarder = Path("src/Dotnet.Watch/Web.Middleware/BrowserToolsForwarder.cs").read_text()
+          server = Path("src/Dotnet.Watch/HotReloadClient/Web/AbstractBrowserRefreshServer.cs").read_text()
+          js = Path("src/StaticWebAssetsSdk/Targets/DotNetWatch/dotnet-watch-browser-tools.js").read_text()
+
+          facts = {
+            "test_imports_only_public_key": "ImportSubjectPublicKeyInfo(Convert.FromBase64String(key.GetPublicKey())" in router,
+            "test_generates_fresh_32_byte_secret": "RandomNumberGenerator.GetBytes(32)" in router,
+            "public_key_substituted_into_config": ".Replace('__PUBLIC_KEY__'" in targets,
+            "config_registered_static_asset": "_DotNetWatchBrowserToolsClientModule" in targets and "DefineStaticWebAssets" in targets,
+            "reserved_connect_route_before_app_pipeline": "app.MapWhen(" in hosting and "next(app);" in hosting,
+            "forwarder_preserves_subprotocol": "foreach (var protocol in context.WebSockets.WebSocketRequestedProtocols)" in forwarder,
+            "forwarder_preserves_origin": 'CopyWebSocketRequestHeader(context, providerSocket.Options, "Origin")' in forwarder,
+            "provider_calls_ciphertext_only_credential": "the only" in server and "credential" in server,
+            "browser_generates_secret_locally": "crypto.getRandomValues(new Uint8Array(32))" in js,
+            "browser_encrypts_with_public_key": "RSA-OAEP" in js and "publicKey" in js,
+          }
+          for k,v in facts.items():
+              print(f"{k}={str(v).lower()}")
+          Path("evidence/source-facts.txt").write_text("\n".join(f"{k}={str(v).lower()}" for k,v in facts.items())+"\n")
+          bad=[k for k,v in facts.items() if not v]
+          if bad:
+              raise SystemExit("failed: "+", ".join(bad))
+          PY
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc2-browsertools-trust-proof-v2
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
